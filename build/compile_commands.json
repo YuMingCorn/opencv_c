@@ -1,0 +1,22 @@
+[
+{
+  "directory": "/home/corn/Desktop/C/opencv_c/build",
+  "command": "gcc  -I/home/corn/Desktop/C/opencv_c/core   -O0 -Wall -ftree-vectorize -g -DDEBUG_MODE   -g -o CMakeFiles/main.dir/core/improc.c.o   -c /home/corn/Desktop/C/opencv_c/core/improc.c",
+  "file": "/home/corn/Desktop/C/opencv_c/core/improc.c"
+},
+{
+  "directory": "/home/corn/Desktop/C/opencv_c/build",
+  "command": "gcc  -I/home/corn/Desktop/C/opencv_c/core   -O0 -Wall -ftree-vectorize -g -DDEBUG_MODE   -g -o CMakeFiles/main.dir/core/mat.c.o   -c /home/corn/Desktop/C/opencv_c/core/mat.c",
+  "file": "/home/corn/Desktop/C/opencv_c/core/mat.c"
+},
+{
+  "directory": "/home/corn/Desktop/C/opencv_c/build",
+  "command": "gcc  -I/home/corn/Desktop/C/opencv_c/core   -O0 -Wall -ftree-vectorize -g -DDEBUG_MODE   -g -o CMakeFiles/main.dir/core/utils.c.o   -c /home/corn/Desktop/C/opencv_c/core/utils.c",
+  "file": "/home/corn/Desktop/C/opencv_c/core/utils.c"
+},
+{
+  "directory": "/home/corn/Desktop/C/opencv_c/build",
+  "command": "gcc  -I/home/corn/Desktop/C/opencv_c/core   -O0 -Wall -ftree-vectorize -g -DDEBUG_MODE   -g -o CMakeFiles/main.dir/main.c.o   -c /home/corn/Desktop/C/opencv_c/main.c",
+  "file": "/home/corn/Desktop/C/opencv_c/main.c"
+}
+]

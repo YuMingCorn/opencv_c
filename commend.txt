@@ -1,0 +1,2 @@
+find ./core \( -name '*.h' -o -name '*.c' \) | xargs clang-format -i
+clang-format -i main.c 

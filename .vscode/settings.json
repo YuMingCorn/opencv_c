@@ -1,0 +1,9 @@
+{
+    "C_Cpp.intelliSenseEngine": "Default",
+    "files.associations": {
+        "mat.h": "c",
+        "improc.h": "c",
+        "pthread.h": "c"
+    },
+    
+}
