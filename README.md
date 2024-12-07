@@ -1,9 +1,5 @@
 # OpenCV C implementation
 
-## Table of Contents
-
-[TOC]
-
 ## Color conversions
 
 ### Orignial implementation
