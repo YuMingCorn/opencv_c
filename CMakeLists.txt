@@ -1,40 +1,30 @@
-# CMakeLists.txt
+cmake_minimum_required(VERSION 3.16)
 
-# Set the minimum required version of CMake
-cmake_minimum_required(VERSION 3.11)
+project(opencv_c LANGUAGES C)
 
-# Define Project Name
-project(MyProject C)
-
-set(CMAKE_C_COMPILER gcc)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -Wall -ftree-vectorize")
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Define the executable name as a variable to avoid repetition
-set(EXECUTABLE_NAME main)
-
-# Add all .c files in the src folder to sources
-file(GLOB c_file "*.c" "core/*.c")
-file(GLOB header_file "*.h" "core/*.h")
-
-find_package(Threads REQUIRED)
-
-
-# Create the executable
-add_executable(${EXECUTABLE_NAME} ${c_file})
-
-# Set the include path
-target_include_directories(${EXECUTABLE_NAME} PUBLIC "core")
-
-# Set debug options for compilation
-target_compile_options(${EXECUTABLE_NAME} PRIVATE -g)  # Enable debug information
-
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE Threads::Threads)
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE m)
-# Optionally, set the default build type to Debug if not specified
-if(NOT CMAKE_BUILD_TYPE)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
 
-# This allows you to control CMake options for different build types
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG_MODE")  # Additional flags for debug mode
+find_package(Threads REQUIRED)
+
+add_library(improc STATIC core/improc.c core/mat.c core/utils.c)
+target_include_directories(improc PUBLIC core)
+target_compile_options(improc PRIVATE -Wall -Wextra)
+target_link_libraries(improc PUBLIC Threads::Threads)
+if(UNIX)
+    target_link_libraries(improc PUBLIC m)
+endif()
+
+add_executable(demo main.c)
+target_compile_options(demo PRIVATE -Wall -Wextra)
+target_link_libraries(demo PRIVATE improc)
+
+add_executable(bench_gray benchmarks/bench_gray.c)
+target_compile_options(bench_gray PRIVATE -Wall -Wextra)
+target_link_libraries(bench_gray PRIVATE improc)

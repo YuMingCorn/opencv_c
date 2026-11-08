@@ -14,11 +14,15 @@ cvt_color(gray_mat, src, COLOR_RGB2GRAY);
 cvt_color(gray_mat1, src, COLOR_RGB2GRAY_INTRIN);
 ```
 
-### Result
+### 執行
 
-```cpp
-Image successfully written to Lenna_gray_v1.png
-Execution time of RGB2GRAY: 0.742150ms 
-Image successfully written to Lenna_gray_v2.png
-Execution time of RGB2GRAY: 0.000070ms 
+```sh
+cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release
+
+# 不帶參數時使用內建的合成測試圖，輸出 gray.jpg
+./build-release/demo [input-image] [output-image]
+
+# 比較各版本 RGB 轉灰階的耗時
+./build-release/bench_gray
 ```

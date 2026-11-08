@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake *)",
+      "Bash(ctest *)",
+      "Bash(clang-format *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(./build/*)",
+      "Bash(./build-release/*)",
+      "PowerShell(cmake *)",
+      "PowerShell(ctest *)",
+      "PowerShell(clang-format *)",
+      "PowerShell(git status*)",
+      "PowerShell(git diff*)",
+      "PowerShell(git log*)"
+    ],
+    "ask": [
+      "Bash(cmake -E rm*)",
+      "Bash(cmake -E remove*)",
+      "PowerShell(cmake -E rm*)",
+      "PowerShell(cmake -E remove*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-c.sh\"",
+            "shell": "bash",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

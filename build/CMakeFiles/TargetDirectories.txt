@@ -1,3 +1,0 @@
-/home/corn/Desktop/C/opencv_c/build/CMakeFiles/rebuild_cache.dir
-/home/corn/Desktop/C/opencv_c/build/CMakeFiles/edit_cache.dir
-/home/corn/Desktop/C/opencv_c/build/CMakeFiles/main.dir
