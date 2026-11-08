@@ -124,6 +124,9 @@ struct Mat {
 
 struct Mat *alloc_mat(int rows, int cols, int type);
 
+// CV_8UC3 test pattern: R ramps by column, G by row, B along the diagonal
+struct Mat *alloc_mat_synthetic(int rows, int cols);
+
 // TODO: Not implementation
 struct Mat *alloc_mat_from_data(int rows, int cols, uchar *data);
 

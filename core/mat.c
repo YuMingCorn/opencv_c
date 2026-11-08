@@ -31,6 +31,19 @@ struct Mat *alloc_mat(int rows, int cols, int type) {
     return mat;
 }
 
+struct Mat *alloc_mat_synthetic(int rows, int cols) {
+    struct Mat *mat = alloc_mat(rows, cols, CV_8UC3);
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            uchar *p = MAT_AT_ELEM_PTR(*mat, uchar, i, j);
+            p[0]     = (uchar)(j * 255 / (cols > 1 ? cols - 1 : 1));
+            p[1]     = (uchar)(i * 255 / (rows > 1 ? rows - 1 : 1));
+            p[2]     = (uchar)((i + j) * 255 / (rows + cols > 2 ? rows + cols - 2 : 1));
+        }
+    }
+    return mat;
+}
+
 void free_mat(struct Mat **mat) {
     if (mat && *mat) {
         fast_free((*mat)->size);

@@ -1,56 +1,30 @@
-#include <fcntl.h> /* For O_* constants */
 #include <stdio.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <time.h>
-#include <unistd.h>
 
-#include "core/improc.h"
-#include "core/mat.h"
+#include "improc.h"
+#include "mat.h"
 
+#define SYNTHETIC_SIZE 512
+
+/* Usage: demo [input-image] [output-image]
+ * Without an input image, a synthetic RGB test pattern is used. */
 int main(int argc, char **argv) {
-    clock_t start = 0;
-    clock_t end   = 0;
-    int     loop  = 100;
+    const char *input  = argc > 1 ? argv[1] : NULL;
+    const char *output = argc > 2 ? argv[2] : "gray.jpg";
 
-    struct Mat *src = alloc_mat_from_file("../Lenna.png");
+    struct Mat *src = input
+                          ? alloc_mat_from_file(input)
+                          : alloc_mat_synthetic(SYNTHETIC_SIZE, SYNTHETIC_SIZE);
+    if (src == NULL) {
+        fprintf(stderr, "Cannot load input image: %s\n", input);
+        return 1;
+    }
     mat_info(src);
 
-    struct Mat *gray_mat = alloc_mat(src->rows, src->cols, CV_8UC1);
+    struct Mat *gray = alloc_mat(src->rows, src->cols, CV_8UC1);
+    cvt_color(gray, src, COLOR_RGB2GRAY);
+    mat_write(output, gray);
 
-    start = clock();
-    for (int i = 0; i < loop; i++) {
-        cvt_color(gray_mat, src, COLOR_RGB2GRAY);
-    }
-    end = clock();
-
-    char filename[50];
-    strncpy(filename, "Lenna_gray_v1.png", sizeof(filename) - 1);
-    mat_write(filename, gray_mat);
-    free_mat(&gray_mat);
-
-    printf("Execution time of RGB2GRAY: %lfms \n",
-           ((double)(end - start) / CLOCKS_PER_SEC * 1000) / loop);
-
-    sleep(1);
-
-    generate_table();
-    struct Mat *gray_mat1 = alloc_mat(src->rows, src->cols, CV_8UC1);
-
-    start = clock();
-    for (int i = 0; i < loop; i++) {
-        cvt_color(gray_mat1, src, COLOR_RGB2GRAY_INTRIN);
-    }
-    end = clock();
-    strncpy(filename, "Lenna_gray_v2.png", sizeof(filename) - 1);
-    mat_write(filename, gray_mat1);
-    free_mat(&gray_mat1);
-
-    printf("Execution time of RGB2GRAY: %lfms \n",
-           ((double)(end - start) / CLOCKS_PER_SEC * 1000) / loop);
-    sleep(1);
-
+    free_mat(&gray);
     free_mat(&src);
     return 0;
 }
