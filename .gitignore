@@ -1,0 +1,10 @@
+# Build trees
+build/
+build-*/
+
+# Tooling caches
+.cache/
+compile_commands.json
+
+# Per-developer Claude Code settings
+.claude/settings.local.json

@@ -8,7 +8,7 @@ fi
 
 # Format files in ./core directory
 echo "Formatting files in ./core..."
-find ./core \( -name '*.h' -o -name '*.c' \) -exec clang-format -i "{}" --verbose \;
+find ./core \( -name '*.h' -o -name '*.c' \) ! -name 'stb_*.h' -exec clang-format -i "{}" --verbose \;
 
 exec clang-format -i main.c --verbose
 
