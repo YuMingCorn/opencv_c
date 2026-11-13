@@ -1,5 +1,7 @@
 #include "utils.h"
 
+#include "improc_internal.h"
+
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -83,4 +85,45 @@ void fast_free(void *ptr) {
     // Sneak *behind* user pointer to find address returned by the allocator
     // Use that address to free
     free_hook(((void **)ptr)[-1]);
+}
+
+int improc_mul_size(size_t a, size_t b, size_t *out) {
+    if (a != 0 && b > SIZE_MAX / a) {
+        return 0;
+    }
+    *out = a * b;
+    return 1;
+}
+
+int improc_add_size(size_t a, size_t b, size_t *out) {
+    if (b > SIZE_MAX - a) {
+        return 0;
+    }
+    *out = a + b;
+    return 1;
+}
+
+size_t improc_scratch_mul(size_t a, size_t b) {
+    size_t out = 0;
+    ASSERT(improc_mul_size(a, b, &out));
+    return out;
+}
+
+size_t improc_scratch_add(size_t a, size_t b) {
+    size_t out = 0;
+    ASSERT(improc_add_size(a, b, &out));
+    return out;
+}
+
+void improc_scratch_check(void *const blocks[], size_t count) {
+    int ok = 1;
+    for (size_t i = 0; i < count; i++) {
+        ok = ok && blocks[i] != NULL;
+    }
+    if (!ok) {
+        for (size_t i = 0; i < count; i++) {
+            fast_free(blocks[i]);
+        }
+    }
+    ASSERT(ok);
 }

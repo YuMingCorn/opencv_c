@@ -150,6 +150,7 @@ add_improc_test(test_hooks)
 add_improc_test(test_morph)
 add_improc_test(test_hist)
 add_improc_test(test_f32)
+add_improc_test(test_scratch)
 # lane-append: tests
 
 add_kodak_test(phase1)

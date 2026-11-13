@@ -3,8 +3,7 @@
 #include <string.h>
 
 #include "improc.h"
-// The Otsu tests reach the static 128-bit helpers, so they compile the source.
-#include "hist.c"
+#include "improc_internal.h"
 #include "test_alloc_util.h"
 #include "test_mat_util.h"
 
@@ -528,19 +527,19 @@ static void test_otsu_overflow_probes(void) {
 }
 
 static void test_u128_multiply(void) {
-    struct U128 r = mul_u64(UINT64_MAX, UINT64_MAX);
+    struct improc_u128 r = improc_mul_u64(UINT64_MAX, UINT64_MAX);
     CHECK(r.hi == UINT64_MAX - 1u);
     CHECK(r.lo == 1u);
-    r = mul_u64(0, UINT64_MAX);
+    r = improc_mul_u64(0, UINT64_MAX);
     CHECK(r.hi == 0 && r.lo == 0);
-    r = mul_u64(1ull << 31, 1ull << 31); // 2^62
+    r = improc_mul_u64(1ull << 31, 1ull << 31); // 2^62
     CHECK(r.hi == 0 && r.lo == (1ull << 62));
-    r = mul_u64(1ull << 32, 1ull << 32); // 2^64
+    r = improc_mul_u64(1ull << 32, 1ull << 32); // 2^64
     CHECK(r.hi == 1 && r.lo == 0);
-    CHECK(u128_greater(mul_u64(1ull << 40, 1ull << 40),
-                       mul_u64(UINT64_MAX, 1ull << 15)));
-    CHECK(!u128_greater(mul_u64(5, 7), mul_u64(35, 1)));
-    CHECK(!u128_greater(mul_u64(5, 6), mul_u64(35, 1)));
+    CHECK(improc_u128_greater(improc_mul_u64(1ull << 40, 1ull << 40),
+                              improc_mul_u64(UINT64_MAX, 1ull << 15)));
+    CHECK(!improc_u128_greater(improc_mul_u64(5, 7), improc_mul_u64(35, 1)));
+    CHECK(!improc_u128_greater(improc_mul_u64(5, 6), improc_mul_u64(35, 1)));
 #ifdef __SIZEOF_INT128__
     const uint64_t v[] = {1,
                           2,
@@ -552,8 +551,8 @@ static void test_u128_multiply(void) {
                           UINT64_MAX - 3};
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 8; j++) {
-            unsigned __int128 want = (unsigned __int128)v[i] * v[j];
-            struct U128       got  = mul_u64(v[i], v[j]);
+            unsigned __int128  want = (unsigned __int128)v[i] * v[j];
+            struct improc_u128 got  = improc_mul_u64(v[i], v[j]);
             CHECK(got.hi == (uint64_t)(want >> 64) && got.lo == (uint64_t)want);
         }
     }

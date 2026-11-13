@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "improc_internal.h"
 #include "pixel.h"
 
 static void check_u8c1(const struct Mat *m) {
@@ -36,7 +37,7 @@ void equalize_hist(struct Mat *dst, const struct Mat *src) {
 
     // Scratch: histogram (1024 bytes) followed by the LUT (256 bytes).
     uint32_t *hist = fast_malloc(HIST_EQUALIZE_SCRATCH);
-    ASSERT(hist != NULL);
+    improc_scratch_check((void *const[]){hist}, 1);
     uchar *lut = (uchar *)(hist + 256);
     calc_hist(hist, src);
 
@@ -66,13 +67,8 @@ void equalize_hist(struct Mat *dst, const struct Mat *src) {
 }
 
 // 64 x 64 -> 128 bit product from four 32-bit multiplies. Portable C: no
-// __int128, so it builds on AVR and Cortex-M0+.
-struct U128 {
-    uint64_t hi;
-    uint64_t lo;
-};
-
-static struct U128 mul_u64(uint64_t a, uint64_t b) {
+// __int128, so it builds on AVR and Cortex-M0+. Declared in improc_internal.h.
+struct improc_u128 improc_mul_u64(uint64_t a, uint64_t b) {
     uint64_t a_lo = a & 0xFFFFFFFFu, a_hi = a >> 32;
     uint64_t b_lo = b & 0xFFFFFFFFu, b_hi = b >> 32;
     uint64_t ll = a_lo * b_lo;
@@ -80,15 +76,14 @@ static struct U128 mul_u64(uint64_t a, uint64_t b) {
     uint64_t hl = a_hi * b_lo;
     uint64_t hh = a_hi * b_hi;
     // mid < 3 * 2^32, no overflow.
-    uint64_t    mid = (ll >> 32) + (lh & 0xFFFFFFFFu) + (hl & 0xFFFFFFFFu);
-    struct U128 r;
+    uint64_t mid = (ll >> 32) + (lh & 0xFFFFFFFFu) + (hl & 0xFFFFFFFFu);
+    struct improc_u128 r;
     r.lo = (ll & 0xFFFFFFFFu) | (mid << 32);
     r.hi = hh + (lh >> 32) + (hl >> 32) + (mid >> 32);
     return r;
 }
 
-// Returns 1 when a > b.
-static int u128_greater(struct U128 a, struct U128 b) {
+int improc_u128_greater(struct improc_u128 a, struct improc_u128 b) {
     return a.hi > b.hi || (a.hi == b.hi && a.lo > b.lo);
 }
 
@@ -138,8 +133,8 @@ uchar otsu_threshold_hist(const uint32_t hist[256]) {
             better = 1;
         } else if (whole == best_int) {
             // num / den > best_num / best_den
-            better =
-                u128_greater(mul_u64(num, best_den), mul_u64(best_num, den));
+            better = improc_u128_greater(improc_mul_u64(num, best_den),
+                                         improc_mul_u64(best_num, den));
         }
         if (better) {
             found    = 1;
@@ -155,7 +150,7 @@ uchar otsu_threshold_hist(const uint32_t hist[256]) {
 uchar otsu_threshold(const struct Mat *src) {
     check_u8c1(src); // before the allocation: a failed ASSERT may longjmp
     uint32_t *hist = fast_malloc(HIST_OTSU_SCRATCH);
-    ASSERT(hist != NULL);
+    improc_scratch_check((void *const[]){hist}, 1);
     calc_hist(hist, src);
     uchar t = otsu_threshold_hist(hist);
     fast_free(hist);
