@@ -132,13 +132,11 @@ struct Mat *alloc_mat(int rows, int cols, int type);
 // CV_8UC3 test pattern: R ramps by column, G by row, B along the diagonal
 struct Mat *alloc_mat_synthetic(int rows, int cols);
 
-// TODO: Not implementation
-struct Mat *alloc_mat_from_data(int rows, int cols, uchar *data);
-
-struct Mat *alloc_mat_from_buffer(uchar *buffer, size_t buffer_size);
+struct Mat *alloc_mat_from_buffer(const uchar *buffer, size_t buffer_size);
 struct Mat *alloc_mat_from_file(char const *filename);
 
-void mat_write(char const *filename, struct Mat *mat);
+// Returns 0 on success, -1 on failure. Format is chosen by extension (.png, .jpg, .jpeg).
+int mat_write(const char *filename, const struct Mat *mat);
 
 void free_mat(struct Mat **mat);
 
