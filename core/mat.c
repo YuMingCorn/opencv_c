@@ -5,7 +5,6 @@
 
 #include "utils.h"
 
-#ifndef IMPROC_NO_MALLOC
 // Returns 1 and stores a*b in *out, or 0 on size_t overflow.
 static int mul_size(size_t a, size_t b, size_t *out) {
     if (a != 0 && b > SIZE_MAX / a) {
@@ -15,41 +14,71 @@ static int mul_size(size_t a, size_t b, size_t *out) {
     return 1;
 }
 
-struct Mat *mat_create(int rows, int cols, int type) {
+// Computes the row stride and total bytes of a rows x cols image. Returns 0, or
+// -1 for a negative size, size_t overflow, or cols * channels above INT_MAX.
+static int mat_geometry(int rows, int cols, int type, size_t *pixel_size,
+                        size_t *row_bytes, size_t *total) {
     if (rows < 0 || cols < 0) {
-        return NULL;
+        return -1;
     }
+    size_t cn = (size_t)CV_MAT_CN(type);
+    if ((size_t)cols > (size_t)INT_MAX / cn) {
+        return -1;
+    }
+    *pixel_size = (size_t)CV_PIXEL_SIZE(type);
+    if (!mul_size(*pixel_size, (size_t)cols, row_bytes) ||
+        !mul_size(*row_bytes, (size_t)rows, total)) {
+        return -1;
+    }
+    return 0;
+}
+
+int mat_init(struct Mat *mat, int rows, int cols, int type, void *data,
+             size_t data_size) {
+    ASSERT(mat != NULL);
     type              = CV_MAT_TYPE(type);
-    size_t pixel_size = CV_PIXEL_SIZE(type);
+    size_t pixel_size = 0;
     size_t row_bytes  = 0;
     size_t total      = 0;
-    if (!mul_size(pixel_size, (size_t)cols, &row_bytes) ||
-        !mul_size(row_bytes, (size_t)rows, &total)) {
-        return NULL;
+    if (mat_geometry(rows, cols, type, &pixel_size, &row_bytes, &total) != 0 ||
+        data_size < total) {
+        return -1;
     }
+    ASSERT(data != NULL || total == 0);
+    ASSERT((uintptr_t)data % (uintptr_t)CV_CH_SIZE(type) == 0);
 
-    struct Mat *mat = (struct Mat *)fast_malloc(sizeof(struct Mat));
-    if (mat == NULL) {
-        return NULL;
-    }
-    mat->flags = (size_t)(type & CV_MAT_TYPE_MASK) | MAGIC_VAL;
-    mat->dims  = 2;
-    mat->rows  = rows;
-    mat->cols  = cols;
-    mat->size  = (size_t *)fast_malloc(2 * sizeof(size_t));
-    mat->step  = (size_t *)fast_malloc(2 * sizeof(size_t));
-    mat->data  = (uchar *)fast_malloc(total);
-    if (mat->size == NULL || mat->step == NULL || mat->data == NULL) {
-        fast_free(mat->size);
-        fast_free(mat->step);
-        fast_free(mat->data);
-        fast_free(mat);
-        return NULL;
-    }
+    mat->flags   = (uint32_t)type | (uint32_t)MAGIC_VAL;
+    mat->dims    = 2;
+    mat->rows    = rows;
+    mat->cols    = cols;
     mat->size[0] = (size_t)rows;
     mat->size[1] = (size_t)cols;
     mat->step[0] = row_bytes;
     mat->step[1] = pixel_size;
+    mat->data    = (uchar *)data;
+    return 0;
+}
+
+#ifndef IMPROC_NO_MALLOC
+struct Mat *mat_create(int rows, int cols, int type) {
+    type              = CV_MAT_TYPE(type);
+    size_t pixel_size = 0;
+    size_t row_bytes  = 0;
+    size_t total      = 0;
+    if (mat_geometry(rows, cols, type, &pixel_size, &row_bytes, &total) != 0) {
+        return NULL;
+    }
+
+    struct Mat *mat  = (struct Mat *)fast_malloc(sizeof(struct Mat));
+    uchar      *data = (uchar *)fast_malloc(total);
+    if (mat == NULL || data == NULL) {
+        fast_free(data);
+        fast_free(mat);
+        return NULL;
+    }
+    int rc = mat_init(mat, rows, cols, type, data, total);
+    ASSERT(rc == 0);
+    mat->flags |= (uint32_t)MAT_FLAG_HEAP;
     return mat;
 }
 
@@ -75,8 +104,7 @@ struct Mat *alloc_mat_synthetic(int rows, int cols) {
 
 void free_mat(struct Mat **mat) {
     if (mat && *mat) {
-        fast_free((*mat)->size);
-        fast_free((*mat)->step);
+        ASSERT(((*mat)->flags & MAT_FLAG_HEAP) != 0);
         fast_free((*mat)->data);
         fast_free(*mat);
         *mat = NULL;

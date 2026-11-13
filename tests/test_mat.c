@@ -1,6 +1,10 @@
+#include <limits.h>
+#include <setjmp.h>
 #include <stdint.h>
 
+#include "color.h"
 #include "mat.h"
+#include "test_alloc_util.h"
 #include "test_util.h"
 #include "utils.h"
 
@@ -127,6 +131,117 @@ static void test_cv_16s_types(void) {
     CHECK_EQ_INT(CV_PIXEL_SIZE(CV_16SC4), 8);
 }
 
+static jmp_buf assert_jump;
+static int     assert_caught;
+
+static void jump_handler(const char *expr, const char *file, int line) {
+    (void)expr;
+    (void)file;
+    (void)line;
+    assert_caught++;
+    longjmp(assert_jump, 1);
+}
+
+static void test_mat_init_layout(void) {
+    uchar      buf[24];
+    struct Mat m;
+    CHECK_EQ_INT(mat_init(&m, 2, 4, CV_8UC3, buf, sizeof(buf)), 0);
+    CHECK_EQ_INT(m.rows, 2);
+    CHECK_EQ_INT(m.cols, 4);
+    CHECK_EQ_INT(m.dims, 2);
+    CHECK_EQ_INT(m.size[0], 2);
+    CHECK_EQ_INT(m.size[1], 4);
+    CHECK_EQ_INT(m.step[0], 12);
+    CHECK_EQ_INT(m.step[1], 3);
+    CHECK_EQ_INT(mat_type(&m), CV_8UC3);
+    CHECK(m.data == buf);
+    CHECK(mat_row(&m, 1) == buf + 12);
+    CHECK((m.flags & MAT_FLAG_HEAP) == 0);
+    CHECK_EQ_INT(m.flags & 0xFFFF0000UL, MAGIC_VAL);
+}
+
+static void test_mat_init_rejects_bad_input(void) {
+    uchar      buf[24];
+    struct Mat m;
+    CHECK_EQ_INT(mat_init(&m, 2, 4, CV_8UC3, buf, 23), -1);
+    CHECK_EQ_INT(mat_init(&m, -1, 4, CV_8UC3, buf, sizeof(buf)), -1);
+    CHECK_EQ_INT(mat_init(&m, 2, -4, CV_8UC3, buf, sizeof(buf)), -1);
+    // cols * channels above INT_MAX, even though data_size claims enough.
+    CHECK_EQ_INT(mat_init(&m, 1, INT_MAX / 3 + 1, CV_8UC3, buf, SIZE_MAX), -1);
+    CHECK_EQ_INT(mat_init(&m, 1, INT_MAX, CV_8UC4, buf, SIZE_MAX), -1);
+    CHECK(mat_create(1, INT_MAX / 3 + 1, CV_8UC3) == NULL);
+}
+
+static void test_mat_init_zero_sized(void) {
+    struct Mat m;
+    CHECK_EQ_INT(mat_init(&m, 0, 5, CV_8UC1, NULL, 0), 0);
+    CHECK_EQ_INT(m.rows, 0);
+    CHECK_EQ_INT(m.step[0], 5);
+}
+
+static void test_mat_init_dst_matches_alloc(void) {
+    struct Mat *src = alloc_mat(3, 5, CV_8UC3);
+    for (size_t i = 0; i < (size_t)src->rows * src->step[0]; i++) {
+        src->data[i] = (uchar)(i * 29u + 3u);
+    }
+    struct Mat *heap_dst = alloc_mat(3, 5, CV_8UC1);
+    uchar       buf[15];
+    struct Mat  stack_dst;
+    CHECK_EQ_INT(mat_init(&stack_dst, 3, 5, CV_8UC1, buf, sizeof(buf)), 0);
+
+    cvt_color(heap_dst, src, COLOR_RGB2GRAY);
+    cvt_color(&stack_dst, src, COLOR_RGB2GRAY);
+    CHECK_EQ_BYTES(buf, heap_dst->data, sizeof(buf));
+
+    free_mat(&heap_dst);
+    free_mat(&src);
+}
+
+static void test_heap_flag(void) {
+    struct Mat *m = alloc_mat(2, 2, CV_8UC3);
+    CHECK((m->flags & MAT_FLAG_HEAP) != 0);
+    CHECK_EQ_INT(mat_type(m), CV_8UC3);
+    CHECK_EQ_INT(mat_channel_num(m), 3);
+    CHECK_EQ_INT(mat_depth(m), CV_8U);
+    free_mat(&m);
+}
+
+static void test_alloc_mat_two_allocations(void) {
+    alloc_counter_start();
+    struct Mat *m = alloc_mat(4, 4, CV_8UC3);
+    CHECK_EQ_INT(alloc_stats.allocs, 2);
+    free_mat(&m);
+    alloc_counter_stop();
+    CHECK_EQ_INT(alloc_stats.frees, 2);
+    CHECK_EQ_INT(alloc_stats.current, 0);
+}
+
+static void test_mat_init_misaligned_asserts(void) {
+    uchar      buf[32];
+    struct Mat m;
+    assert_caught = 0;
+    improc_set_assert_handler(jump_handler);
+    if (setjmp(assert_jump) == 0) {
+        mat_init(&m, 1, 2, CV_32FC1, buf + 1, 8);
+    }
+    improc_set_assert_handler(NULL);
+    CHECK_EQ_INT(assert_caught, 1);
+}
+
+static void test_free_mat_rejects_non_heap(void) {
+    uchar       buf[4];
+    struct Mat  m;
+    struct Mat *p = &m;
+    CHECK_EQ_INT(mat_init(&m, 1, 4, CV_8UC1, buf, sizeof(buf)), 0);
+    assert_caught = 0;
+    improc_set_assert_handler(jump_handler);
+    if (setjmp(assert_jump) == 0) {
+        free_mat(&p);
+    }
+    improc_set_assert_handler(NULL);
+    CHECK_EQ_INT(assert_caught, 1);
+}
+
 int main(void) {
     RUN_TEST(test_type_macros);
     RUN_TEST(test_alloc_layout);
@@ -139,5 +254,13 @@ int main(void) {
     RUN_TEST(test_alloc_zero_sized);
     RUN_TEST(test_mat_row);
     RUN_TEST(test_cv_16s_types);
+    RUN_TEST(test_mat_init_layout);
+    RUN_TEST(test_mat_init_rejects_bad_input);
+    RUN_TEST(test_mat_init_zero_sized);
+    RUN_TEST(test_mat_init_dst_matches_alloc);
+    RUN_TEST(test_heap_flag);
+    RUN_TEST(test_alloc_mat_two_allocations);
+    RUN_TEST(test_mat_init_misaligned_asserts);
+    RUN_TEST(test_free_mat_rejects_non_heap);
     return test_finish();
 }
