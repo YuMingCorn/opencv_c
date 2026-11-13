@@ -346,8 +346,9 @@ static void test_hsv_width_sweep(void) {
 // buffer holding sentinel bytes, with cols forced to 0 or rows to 0.
 static void test_color2_zero_size_leaves_dst(void) {
     const int codes[] = {COLOR_RGB2HSV, COLOR_BGR2HSV, COLOR_HSV2RGB,
-                         COLOR_HSV2BGR};
-    for (int i = 0; i < 4; i++) {
+                         COLOR_HSV2BGR, COLOR_RGB2YUV, COLOR_BGR2YUV,
+                         COLOR_YUV2RGB, COLOR_YUV2BGR};
+    for (int i = 0; i < 8; i++) {
         for (int mode = 0; mode < 2; mode++) {
             uchar      sbuf[3] = {1, 2, 3};
             uchar      dbuf[3] = {7, 8, 9};
@@ -390,6 +391,178 @@ static void check_misuse_asserts(int code) {
 static void test_color2_misuse_asserts(void) {
     check_misuse_asserts(COLOR_RGB2HSV);
     check_misuse_asserts(COLOR_HSV2BGR);
+    check_misuse_asserts(COLOR_BGR2YUV);
+    check_misuse_asserts(COLOR_YUV2RGB);
+}
+
+// ---- YUV --------------------------------------------------------------------
+
+static void test_rgb2yuv_hand_values(void) {
+    const uchar in[]  = {255, 0,   0,   0,  255, 0,  0,   0,   255,
+                         128, 128, 128, 0,  0,   0,  255, 255, 255,
+                         200, 100, 50,  10, 20,  30, 255, 255, 0};
+    const uchar out[] = {77,  85,  255, 149, 43,  21,  29,  255, 107,
+                         128, 128, 128, 0,   128, 128, 255, 128, 128,
+                         124, 86,  182, 18,  135, 122, 226, 1,   149};
+    convert_bytes(COLOR_RGB2YUV, CV_8UC3, CV_8UC3, 1, 9, in, out);
+}
+
+static void test_bgr2yuv_swaps_input(void) {
+    const uchar in[]  = {0, 0, 255, 50, 100, 200};
+    const uchar out[] = {77, 85, 255, 124, 86, 182};
+    convert_bytes(COLOR_BGR2YUV, CV_8UC3, CV_8UC3, 1, 2, in, out);
+}
+
+static void test_yuv2rgb_hand_values(void) {
+    const uchar in[]  = {128, 128, 128, 77, 85,  255, 100, 200, 50,  29, 255,
+                         107, 150, 44,  21, 255, 128, 128, 0,   128, 128};
+    const uchar out[] = {128, 128, 128, 255, 1,   1,   0,   131, 228, 0, 0,
+                         254, 0,   255, 1,   255, 255, 255, 0,   0,   0};
+    convert_bytes(COLOR_YUV2RGB, CV_8UC3, CV_8UC3, 1, 7, in, out);
+}
+
+static void test_yuv2bgr_swaps_output(void) {
+    const uchar in[]  = {100, 200, 50};
+    const uchar out[] = {228, 131, 0};
+    convert_bytes(COLOR_YUV2BGR, CV_8UC3, CV_8UC3, 1, 1, in, out);
+}
+
+// 64-bit reference with plain arithmetic division by 256 after clamping.
+static void ref_rgb2yuv(int r, int g, int b, int out[3]) {
+    int64_t y = (77 * r + 150 * g + 29 * b + 128) / 256;
+    int64_t u = (32896 - 43 * r - 85 * g + 128 * b) / 256;
+    int64_t v = (32896 + 128 * r - 107 * g - 21 * b) / 256;
+    out[0]    = (int)y;
+    out[1]    = (int)(u > 255 ? 255 : u);
+    out[2]    = (int)(v > 255 ? 255 : v);
+}
+
+static int ref_yuv_clamp(int64_t x) {
+    if (x < 0) {
+        return 0;
+    }
+    x /= 256;
+    return (int)(x > 255 ? 255 : x);
+}
+
+static void ref_yuv2rgb(int y, int u, int v, int out[3]) {
+    out[0] = ref_yuv_clamp(256 * y + 359 * (v - 128) + 128);
+    out[1] = ref_yuv_clamp(256 * y - 88 * (u - 128) - 183 * (v - 128) + 128);
+    out[2] = ref_yuv_clamp(256 * y + 454 * (u - 128) + 128);
+}
+
+static void test_rgb2yuv_grid_matches_reference(void) {
+    for (int r = 0; r < 256; r += 3) {
+        for (int g = 0; g < 256; g += 3) {
+            for (int b = 0; b < 256; b += 3) {
+                uchar in[3] = {(uchar)r, (uchar)g, (uchar)b};
+                uchar out[3];
+                int   want[3];
+                convert_px(COLOR_RGB2YUV, in, out);
+                ref_rgb2yuv(r, g, b, want);
+                if (out[0] != want[0] || out[1] != want[1] ||
+                    out[2] != want[2]) {
+                    TEST_FAIL_("rgb2yuv(%d,%d,%d) = %d,%d,%d want %d,%d,%d", r,
+                               g, b, out[0], out[1], out[2], want[0], want[1],
+                               want[2]);
+                    return;
+                }
+            }
+        }
+    }
+    // The corners hit the clamp value 256 for U (blue) and V (red).
+    const uchar blue[3] = {0, 0, 255};
+    uchar       out[3];
+    convert_px(COLOR_RGB2YUV, blue, out);
+    CHECK_EQ_INT(out[1], 255);
+}
+
+static void test_yuv2rgb_grid_matches_reference(void) {
+    for (int y = 0; y < 256; y += 3) {
+        for (int u = 0; u < 256; u += 3) {
+            for (int v = 0; v < 256; v += 3) {
+                uchar in[3] = {(uchar)y, (uchar)u, (uchar)v};
+                uchar out[3];
+                int   want[3];
+                convert_px(COLOR_YUV2RGB, in, out);
+                ref_yuv2rgb(y, u, v, want);
+                if (out[0] != want[0] || out[1] != want[1] ||
+                    out[2] != want[2]) {
+                    TEST_FAIL_("yuv2rgb(%d,%d,%d) = %d,%d,%d want %d,%d,%d", y,
+                               u, v, out[0], out[1], out[2], want[0], want[1],
+                               want[2]);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+static void test_yuv_round_trip_error(void) {
+    int worst = 0;
+    for (int r = 0; r < 256; r += 5) {
+        for (int g = 0; g < 256; g += 5) {
+            for (int b = 0; b < 256; b += 5) {
+                uchar in[3] = {(uchar)r, (uchar)g, (uchar)b};
+                uchar mid[3], back[3];
+                convert_px(COLOR_RGB2YUV, in, mid);
+                convert_px(COLOR_YUV2RGB, mid, back);
+                for (int k = 0; k < 3; k++) {
+                    int e = (int)in[k] - (int)back[k];
+                    if (e < 0)
+                        e = -e;
+                    if (e > worst)
+                        worst = e;
+                }
+            }
+        }
+    }
+    printf("  yuv round trip max error %d\n", worst);
+    CHECK(worst <= 2);
+}
+
+static void test_yuv_width_sweep(void) {
+    for (int w = 0; w <= 65; w++) {
+        struct Mat *src = alloc_mat(3, w, CV_8UC3);
+        struct Mat *yuv = alloc_mat(3, w, CV_8UC3);
+        struct Mat *bgr = alloc_mat(3, w, CV_8UC3);
+        struct Mat *yb  = alloc_mat(3, w, CV_8UC3);
+        struct Mat *rgb = alloc_mat(3, w, CV_8UC3);
+        struct Mat *rb  = alloc_mat(3, w, CV_8UC3);
+        fill_pattern(src, (unsigned)w);
+        cvt_color(yuv, src, COLOR_RGB2YUV);
+        cvt_color(bgr, src, COLOR_RGB2BGR);
+        cvt_color(yb, bgr, COLOR_BGR2YUV);
+        cvt_color(rgb, src, COLOR_YUV2RGB); // src read as YUV
+        cvt_color(rb, src, COLOR_YUV2BGR);
+        for (int y = 0; y < 3; y++) {
+            for (int x = 0; x < w; x++) {
+                const uchar *p = mat_at(src, y, x);
+                const uchar *q = mat_at(yuv, y, x);
+                int          want[3];
+                ref_rgb2yuv(p[0], p[1], p[2], want);
+                CHECK_EQ_INT(q[0], want[0]);
+                CHECK_EQ_INT(q[1], want[1]);
+                CHECK_EQ_INT(q[2], want[2]);
+                CHECK_EQ_BYTES(mat_at(yb, y, x), q, 3);
+                ref_yuv2rgb(p[0], p[1], p[2], want);
+                const uchar *r = mat_at(rgb, y, x);
+                const uchar *o = mat_at(rb, y, x);
+                CHECK_EQ_INT(r[0], want[0]);
+                CHECK_EQ_INT(r[1], want[1]);
+                CHECK_EQ_INT(r[2], want[2]);
+                CHECK_EQ_INT(o[0], want[2]);
+                CHECK_EQ_INT(o[1], want[1]);
+                CHECK_EQ_INT(o[2], want[0]);
+            }
+        }
+        free_mat(&src);
+        free_mat(&yuv);
+        free_mat(&bgr);
+        free_mat(&yb);
+        free_mat(&rgb);
+        free_mat(&rb);
+    }
 }
 
 int main(void) {
@@ -411,6 +584,14 @@ int main(void) {
     RUN_TEST(test_hsv2rgb_grid_matches_reference);
     RUN_TEST(test_hsv_round_trip_error);
     RUN_TEST(test_hsv_width_sweep);
+    RUN_TEST(test_rgb2yuv_hand_values);
+    RUN_TEST(test_bgr2yuv_swaps_input);
+    RUN_TEST(test_yuv2rgb_hand_values);
+    RUN_TEST(test_yuv2bgr_swaps_output);
+    RUN_TEST(test_rgb2yuv_grid_matches_reference);
+    RUN_TEST(test_yuv2rgb_grid_matches_reference);
+    RUN_TEST(test_yuv_round_trip_error);
+    RUN_TEST(test_yuv_width_sweep);
     RUN_TEST(test_color2_zero_size_leaves_dst);
     RUN_TEST(test_color2_misuse_asserts);
     return test_finish();
