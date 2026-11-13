@@ -68,8 +68,13 @@ set(IMPROC_CORE_SOURCES
 
 # Sources that need float support (not compiled when IMPROC_ENABLE_FLOAT=OFF).
 set(IMPROC_FLOAT_SOURCES
+    core/convert_f32.c
     # lane-append: float sources
 )
+# Float sources: no fused multiply-add (bit-identical across targets) and no
+# implicit float -> double promotion.
+set_source_files_properties(core/convert_f32.c PROPERTIES
+    COMPILE_OPTIONS "-ffp-contract=off;-Wdouble-promotion")
 
 add_library(improc_core STATIC ${IMPROC_CORE_SOURCES})
 if(IMPROC_ENABLE_FLOAT AND IMPROC_FLOAT_SOURCES)
@@ -144,6 +149,7 @@ add_improc_test(test_io)
 add_improc_test(test_hooks)
 add_improc_test(test_morph)
 add_improc_test(test_hist)
+add_improc_test(test_f32)
 # lane-append: tests
 
 add_kodak_test(phase1)
@@ -151,6 +157,9 @@ add_kodak_test(morph)
 add_kodak_test(hist)
 add_kodak_test(color2)
 add_kodak_test(area)
+if(IMPROC_ENABLE_FLOAT)
+    add_kodak_test(f32)
+endif()
 # lane-append: kodak tests
 
 add_test(NAME demo_smoke COMMAND demo

@@ -9,6 +9,9 @@
 #include "utils.h"
 #include "morph.h"
 #include "hist.h"
+#if IMPROC_HAS_FLOAT
+#include "convert_f32.h"
+#endif
 // lane-append: includes
 
 #ifndef IMPROC_CORE_ONLY
