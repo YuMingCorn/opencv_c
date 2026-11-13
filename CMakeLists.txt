@@ -28,3 +28,15 @@ target_link_libraries(demo PRIVATE improc)
 add_executable(bench_gray benchmarks/bench_gray.c)
 target_compile_options(bench_gray PRIVATE -Wall -Wextra)
 target_link_libraries(bench_gray PRIVATE improc)
+
+enable_testing()
+
+function(add_improc_test name)
+    add_executable(${name} tests/${name}.c)
+    target_compile_options(${name} PRIVATE -Wall -Wextra)
+    target_link_libraries(${name} PRIVATE improc)
+    add_test(NAME ${name} COMMAND ${name})
+    set_tests_properties(${name} PROPERTIES SKIP_RETURN_CODE 77)
+endfunction()
+
+add_improc_test(test_mat)

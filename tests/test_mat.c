@@ -1,0 +1,82 @@
+#include "mat.h"
+#include "test_util.h"
+
+static void test_type_macros(void) {
+    CHECK_EQ_INT(CV_8UC1, 0);
+    CHECK_EQ_INT(CV_8UC3, 16);
+    CHECK_EQ_INT(CV_8UC4, 24);
+
+    CHECK_EQ_INT(CV_MAT_DEPTH(CV_32FC3), CV_32F);
+    CHECK_EQ_INT(CV_MAT_CN(CV_32FC3), 3);
+
+    CHECK_EQ_INT(CV_CH_SIZE(CV_8U), 1);
+    CHECK_EQ_INT(CV_CH_SIZE(CV_16S), 2);
+    CHECK_EQ_INT(CV_CH_SIZE(CV_32F), 4);
+    CHECK_EQ_INT(CV_CH_SIZE(CV_64F), 8);
+
+    CHECK_EQ_INT(CV_PIXEL_SIZE(CV_8UC4), 4);
+    CHECK_EQ_INT(CV_PIXEL_SIZE(CV_32FC3), 12);
+}
+
+static void test_alloc_layout(void) {
+    struct Mat *m = alloc_mat(2, 3, CV_8UC3);
+
+    CHECK_EQ_INT(m->rows, 2);
+    CHECK_EQ_INT(m->cols, 3);
+    CHECK_EQ_INT(m->dims, 2);
+    CHECK_EQ_INT(m->size[0], 2);
+    CHECK_EQ_INT(m->size[1], 3);
+    CHECK_EQ_INT(m->step[0], 9);
+    CHECK_EQ_INT(m->step[1], 3);
+    CHECK_EQ_INT(mat_type(m), CV_8UC3);
+    CHECK_EQ_INT(mat_channel_num(m), 3);
+    CHECK_EQ_INT(mat_pixel_size(m), 3);
+
+    free_mat(&m);
+    CHECK(m == NULL);
+}
+
+static void test_mat_at_is_interleaved(void) {
+    struct Mat *m = alloc_mat(2, 3, CV_8UC3);
+
+    // row 1 starts at byte 9; column 2 adds 2 * 3 bytes.
+    CHECK((uchar *)mat_at(m, 1, 2) == m->data + 15);
+    CHECK(MAT_AT(*m, 1, 2) == m->data + 15);
+
+    free_mat(&m);
+}
+
+static void test_synthetic_pattern(void) {
+    struct Mat *m = alloc_mat_synthetic(3, 3);
+
+    // clang-format off
+    static const uchar expected[27] = {
+        /* row 0 */   0,   0,   0,   127,   0,  63,   255,   0, 127,
+        /* row 1 */   0, 127,  63,   127, 127, 127,   255, 127, 191,
+        /* row 2 */   0, 255, 127,   127, 255, 191,   255, 255, 255,
+    };
+    // clang-format on
+
+    CHECK_EQ_INT(mat_type(m), CV_8UC3);
+    CHECK_EQ_BYTES(m->data, expected, sizeof(expected));
+
+    free_mat(&m);
+}
+
+static void test_synthetic_single_pixel(void) {
+    struct Mat *m = alloc_mat_synthetic(1, 1);
+
+    static const uchar expected[3] = {0, 0, 0};
+    CHECK_EQ_BYTES(m->data, expected, sizeof(expected));
+
+    free_mat(&m);
+}
+
+int main(void) {
+    RUN_TEST(test_type_macros);
+    RUN_TEST(test_alloc_layout);
+    RUN_TEST(test_mat_at_is_interleaved);
+    RUN_TEST(test_synthetic_pattern);
+    RUN_TEST(test_synthetic_single_pixel);
+    return test_finish();
+}
