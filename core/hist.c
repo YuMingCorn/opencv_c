@@ -64,3 +64,100 @@ void equalize_hist(struct Mat *dst, const struct Mat *src) {
     mat_lut(dst, src, lut);
     fast_free(hist);
 }
+
+// 64 x 64 -> 128 bit product from four 32-bit multiplies. Portable C: no
+// __int128, so it builds on AVR and Cortex-M0+.
+struct U128 {
+    uint64_t hi;
+    uint64_t lo;
+};
+
+static struct U128 mul_u64(uint64_t a, uint64_t b) {
+    uint64_t a_lo = a & 0xFFFFFFFFu, a_hi = a >> 32;
+    uint64_t b_lo = b & 0xFFFFFFFFu, b_hi = b >> 32;
+    uint64_t ll = a_lo * b_lo;
+    uint64_t lh = a_lo * b_hi;
+    uint64_t hl = a_hi * b_lo;
+    uint64_t hh = a_hi * b_hi;
+    // mid < 3 * 2^32, no overflow.
+    uint64_t    mid = (ll >> 32) + (lh & 0xFFFFFFFFu) + (hl & 0xFFFFFFFFu);
+    struct U128 r;
+    r.lo = (ll & 0xFFFFFFFFu) | (mid << 32);
+    r.hi = hh + (lh >> 32) + (hl >> 32) + (mid >> 32);
+    return r;
+}
+
+// Returns 1 when a > b.
+static int u128_greater(struct U128 a, struct U128 b) {
+    return a.hi > b.hi || (a.hi == b.hi && a.lo > b.lo);
+}
+
+uchar otsu_threshold_hist(const uint32_t hist[256]) {
+    ASSERT(hist != NULL);
+    uint64_t total = 0;
+    uint64_t sum   = 0;
+    for (int i = 0; i < 256; i++) {
+        total += hist[i];
+        sum += (uint64_t)hist[i] * (uint64_t)i;
+    }
+    ASSERT(total <= (uint64_t)HIST_MAX_PIXELS);
+
+    // f(t) = s0^2 / w0 + s1^2 / w1 = best_int + best_num / best_den.
+    int      found    = 0;
+    uchar    best_t   = 0;
+    uint64_t best_int = 0;
+    uint64_t best_num = 0;
+    uint64_t best_den = 1;
+    uint64_t w0       = 0;
+    uint64_t s0       = 0;
+    for (int t = 0; t < 255; t++) {
+        w0 += hist[t];
+        s0 += (uint64_t)hist[t] * (uint64_t)t;
+        uint64_t w1 = total - w0;
+        if (w0 == 0) {
+            continue;
+        }
+        if (w1 == 0) {
+            break;
+        }
+        uint64_t s1 = sum - s0;
+        // s0, s1 < 2^32, so the squares fit uint64_t.
+        uint64_t sq0   = s0 * s0;
+        uint64_t sq1   = s1 * s1;
+        uint64_t q0    = sq0 / w0;
+        uint64_t r0    = sq0 % w0;
+        uint64_t q1    = sq1 / w1;
+        uint64_t r1    = sq1 % w1;
+        uint64_t den   = w0 * w1;           // < 2^46
+        uint64_t num   = r0 * w1 + r1 * w0; // < 2^47
+        uint64_t whole = q0 + q1 + num / den;
+        num %= den;
+
+        int better = 0;
+        if (!found || whole > best_int) {
+            better = 1;
+        } else if (whole == best_int) {
+            // num / den > best_num / best_den
+            better =
+                u128_greater(mul_u64(num, best_den), mul_u64(best_num, den));
+        }
+        if (better) {
+            found    = 1;
+            best_t   = (uchar)t;
+            best_int = whole;
+            best_num = num;
+            best_den = den;
+        }
+    }
+    return found ? best_t : 0;
+}
+
+uchar otsu_threshold(const struct Mat *src) {
+    check_u8c1(src); // before the allocation: a failed ASSERT may longjmp
+    uint32_t *hist = fast_malloc(HIST_OTSU_SCRATCH);
+    ASSERT(hist != NULL);
+    calc_hist(hist, src);
+    uchar t = otsu_threshold_hist(hist);
+    fast_free(hist);
+    return t;
+}

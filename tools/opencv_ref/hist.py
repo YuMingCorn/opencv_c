@@ -51,15 +51,18 @@ def check_values(ctx):
     return hist_diff, ours, ref
 
 
-def _equalize(ctx):
-    hist_diff, _, _ = check_values(ctx)
+def _otsu_binary(ctx):
+    hist_diff, ours, ref = check_values(ctx)
     if hist_diff != 0:
         sys.exit(f"{ctx.image}: calc_hist differs from cv2.calcHist (max {hist_diff})")
-    return cv2.equalizeHist(ctx.get("gray"))
+    if ours != ref:
+        sys.exit(f"{ctx.image}: Otsu threshold {ours} != OpenCV {ref}")
+    return cv2.threshold(ctx.get("gray"), 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
 
 
 OPS = {
-    "equalize": (_equalize, 1, "equalizeHist on our gray; also checks hist values"),
+    "equalize": (lambda c: cv2.equalizeHist(c.get("gray")), 1, "equalizeHist on our gray"),
+    "otsu_binary": (_otsu_binary, 0, "THRESH_OTSU on our gray; also checks hist and otsu values"),
 }
 
 
