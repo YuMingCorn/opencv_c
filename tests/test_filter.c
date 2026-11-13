@@ -218,6 +218,91 @@ static void test_gauss_width_sweep(void) {
     }
 }
 
+static void sobel_i16(int rows, int cols, const uchar *in, int dx, int dy,
+                      const int16_t *expected) {
+    struct Mat *src = mat_from_bytes(rows, cols, CV_8UC1, in);
+    struct Mat *dst = alloc_mat(rows, cols, CV_16SC1);
+    sobel(dst, src, dx, dy);
+    CHECK_MAT_BYTES(dst, expected);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
+static void test_sobel_vertical_edge(void) {
+    const uchar   in[]       = {0, 0, 100, 100, 0, 0, 100, 100, 0, 0, 100, 100};
+    const int16_t dx_out[]   = {0, 400, 400, 0, 0, 400, 400, 0, 0, 400, 400, 0};
+    const int16_t dy_out[12] = {0};
+    sobel_i16(3, 4, in, 1, 0, dx_out);
+    sobel_i16(3, 4, in, 0, 1, dy_out);
+}
+
+static void test_sobel_negative(void) {
+    const uchar   in[]  = {100, 100, 0, 0, 100, 100, 0, 0};
+    const int16_t out[] = {0, -400, -400, 0, 0, -400, -400, 0};
+    sobel_i16(2, 4, in, 1, 0, out);
+}
+
+static void test_sobel_ramp(void) {
+    const uchar   in[]     = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+    const int16_t dx_out[] = {0, 8, 0, 0, 8, 0, 0, 8, 0};
+    const int16_t dy_out[] = {0, 0, 0, 24, 24, 24, 0, 0, 0};
+    sobel_i16(3, 3, in, 1, 0, dx_out);
+    sobel_i16(3, 3, in, 0, 1, dy_out);
+}
+
+static void test_sobel_max_range(void) {
+    const uchar   in[]     = {0, 0, 0, 0, 0, 0, 255, 255, 255};
+    const int16_t dy_out[] = {0, 0, 0, 1020, 1020, 1020, 0, 0, 0};
+    sobel_i16(3, 3, in, 0, 1, dy_out);
+    const uchar   row[]    = {0, 0, 255};
+    const int16_t dx_out[] = {0, 1020, 0};
+    sobel_i16(1, 3, row, 1, 0, dx_out);
+}
+
+static void test_sobel_two_wide(void) {
+    const uchar   in[]  = {0, 255};
+    const int16_t out[] = {0, 0};
+    sobel_i16(1, 2, in, 1, 0, out);
+}
+
+static void sobel_reference(struct Mat *dst, const struct Mat *src, int dx,
+                            int dy) {
+    static const int kx[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
+    static const int ky[3][3] = {{-1, -2, -1}, {0, 0, 0}, {1, 2, 1}};
+    const int (*k)[3]         = dx ? kx : ky;
+    (void)dy;
+    for (int y = 0; y < src->rows; y++) {
+        for (int x = 0; x < src->cols; x++) {
+            int acc = 0;
+            for (int i = -1; i <= 1; i++) {
+                for (int j = -1; j <= 1; j++) {
+                    int yy = reflect101(y + i, src->rows);
+                    int xx = reflect101(x + j, src->cols);
+                    acc += k[i + 1][j + 1] * mat_row(src, yy)[xx];
+                }
+            }
+            ((int16_t *)mat_row(dst, y))[x] = (int16_t)acc;
+        }
+    }
+}
+
+static void test_sobel_width_sweep(void) {
+    for (int dir = 0; dir < 2; dir++) {
+        for (int w = 0; w <= 65; w++) {
+            struct Mat *src = alloc_mat(3, w, CV_8UC1);
+            struct Mat *dst = alloc_mat(3, w, CV_16SC1);
+            struct Mat *ref = alloc_mat(3, w, CV_16SC1);
+            fill_pattern(src, (unsigned)w + 9u);
+            sobel(dst, src, dir == 0, dir == 1);
+            sobel_reference(ref, src, dir == 0, dir == 1);
+            CHECK_MAT_BYTES(dst, ref->data);
+            free_mat(&src);
+            free_mat(&dst);
+            free_mat(&ref);
+        }
+    }
+}
+
 int main(void) {
     RUN_TEST(test_box_impulse);
     RUN_TEST(test_box_ramp);
@@ -235,5 +320,11 @@ int main(void) {
     RUN_TEST(test_gauss_constant_k7);
     RUN_TEST(test_gauss_rgb);
     RUN_TEST(test_gauss_width_sweep);
+    RUN_TEST(test_sobel_vertical_edge);
+    RUN_TEST(test_sobel_negative);
+    RUN_TEST(test_sobel_ramp);
+    RUN_TEST(test_sobel_max_range);
+    RUN_TEST(test_sobel_two_wide);
+    RUN_TEST(test_sobel_width_sweep);
     return test_finish();
 }

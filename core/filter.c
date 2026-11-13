@@ -186,3 +186,59 @@ void gaussian_blur(struct Mat *dst, const struct Mat *src, int ksize) {
     fast_free(pad);
     fast_free(tmp);
 }
+
+// Sobel horizontal pass with a 3-tap kernel; |result| <= 1020 fits int16_t.
+static void sobel_hrow(const uchar *restrict pad, int16_t *restrict out, int n,
+                       int cn, const int *w) {
+    for (int i = 0; i < n; i++) {
+        out[i] = (int16_t)(w[0] * pad[i] + w[1] * pad[i + cn] +
+                           w[2] * pad[i + 2 * cn]);
+    }
+}
+
+static void sobel_vrow(const int16_t *restrict t0, const int16_t *restrict t1,
+                       const int16_t *restrict t2, int16_t *restrict d, int n,
+                       const int *w) {
+    for (int i = 0; i < n; i++) {
+        d[i] = (int16_t)(w[0] * t0[i] + w[1] * t1[i] + w[2] * t2[i]);
+    }
+}
+
+void sobel(struct Mat *dst, const struct Mat *src, int dx, int dy) {
+    ASSERT(dst != src && dst->data != src->data);
+    ASSERT(mat_type(src) == (size_t)CV_8UC1);
+    ASSERT(mat_type(dst) == (size_t)CV_16SC1);
+    ASSERT(dst->rows == src->rows && dst->cols == src->cols);
+    ASSERT((dx == 1 && dy == 0) || (dx == 0 && dy == 1));
+    if (src->rows == 0 || src->cols == 0) {
+        return;
+    }
+
+    static const int diff[3]   = {-1, 0, 1};
+    static const int smooth[3] = {1, 2, 1};
+    const int       *wh        = dx ? diff : smooth;
+    const int       *wv        = dx ? smooth : diff;
+
+    const int rows = src->rows;
+    const int cols = src->cols;
+
+    int16_t *tmp = fast_malloc((size_t)rows * (size_t)cols * sizeof(int16_t));
+    uchar   *pad = fast_malloc((size_t)cols + 2);
+    ASSERT(tmp != NULL && pad != NULL);
+
+    for (int y = 0; y < rows; y++) {
+        pad_row(mat_row(src, y), pad, cols, 1, 1);
+        sobel_hrow(pad, tmp + (size_t)y * (size_t)cols, cols, 1, wh);
+    }
+    for (int y = 0; y < rows; y++) {
+        const int16_t *t0 =
+            tmp + (size_t)border_reflect_101(y - 1, rows) * (size_t)cols;
+        const int16_t *t1 = tmp + (size_t)y * (size_t)cols;
+        const int16_t *t2 =
+            tmp + (size_t)border_reflect_101(y + 1, rows) * (size_t)cols;
+        sobel_vrow(t0, t1, t2, (int16_t *)mat_row(dst, y), cols, wv);
+    }
+
+    fast_free(pad);
+    fast_free(tmp);
+}
