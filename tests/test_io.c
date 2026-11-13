@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "mat.h"
+#include "mat_io.h"
 #include "test_mat_util.h"
 #include "test_util.h"
 
