@@ -2,16 +2,18 @@
 #define MAT_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
-#define MAGIC_VAL 0x42FF0000
-#define CV_8U     0 // 8-bit unsigned
-#define CV_8S     1 // 8-bit signed
-#define CV_16U    2 // 16-bit unsigned
-#define CV_16S    3 // 16-bit signed
-#define CV_32S    4 // 32-bit signed
-#define CV_32F    5 // 32-bit float
-#define CV_64F    6 // 64-bit float
-#define CV_16F    7 // 16-bit float
+#define MAGIC_VAL     0x42FF0000UL
+#define MAT_FLAG_HEAP 0x1000UL // set by alloc_mat; outside CV_MAT_TYPE_MASK
+#define CV_8U         0        // 8-bit unsigned
+#define CV_8S         1        // 8-bit signed
+#define CV_16U        2        // 16-bit unsigned
+#define CV_16S        3        // 16-bit signed
+#define CV_32S        4        // 32-bit signed
+#define CV_32F        5        // 32-bit float
+#define CV_64F        6        // 64-bit float
+#define CV_16F        7        // 16-bit float
 
 #define CV_CN_SHIFT 3   // channel shift
 #define CV_CN_MAX   512 // max channel num (0 ~ 511)
@@ -106,25 +108,37 @@
 
 typedef unsigned char uchar;
 
+// Total bytes of a rows x cols image of the given type. size_t arithmetic.
+#define MAT_DATA_SIZE(rows, cols, type)                                        \
+    ((size_t)(rows) * (size_t)(cols) * CV_PIXEL_SIZE(type))
+
 struct Mat {
     /*! includes several bit-fields:
          - the magic signature
-         - continuity flag
+         - MAT_FLAG_HEAP when alloc_mat owns the data
          - depth
          - number of channels (0~)
      */
-    size_t flags;
+    uint32_t flags;
     //! the matrix dimensionality, >= 2
-    size_t dims;
+    int dims;
     //! number of rows, colums
     int rows;
     int cols;
-    //! pointer to the array of size and step for n-dim array
-    size_t *size;
-    size_t *step;
+    //! size and step per dimension, stored in the header
+    size_t size[2];
+    size_t step[2];
     //! pointer to the data
     uchar *data;
 };
+
+// Builds a header over caller-owned memory. Nothing is allocated, and the
+// header must not be passed to free_mat. Returns 0, or -1 when rows or cols is
+// negative, the size overflows size_t, cols * channels exceeds INT_MAX, or
+// data_size is smaller than the image. ASSERTs mat != NULL and that data is
+// aligned to the channel size.
+int mat_init(struct Mat *mat, int rows, int cols, int type, void *data,
+             size_t data_size);
 
 #ifndef IMPROC_NO_MALLOC
 // Allocates a Mat that owns its data. Returns NULL on invalid size or
