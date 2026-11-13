@@ -28,5 +28,6 @@ OPS = {
     "erode3": (_erode(3), 0, "cv2.erode 3x3"),
     "dilate3": (_dilate(3), 0, "cv2.dilate 3x3"),
     "gray_erode7": (_erode(7, "gray_src"), 0, "cv2.erode 7x7 on our gray"),
-    # lane-b-open-close-ops
+    "open5": (_morphology(cv2.MORPH_OPEN, 5), 0, "morphologyEx OPEN 5x5"),
+    "close5": (_morphology(cv2.MORPH_CLOSE, 5), 0, "morphologyEx CLOSE 5x5"),
 }

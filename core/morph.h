@@ -11,4 +11,12 @@
 void erode(struct Mat *dst, const struct Mat *src, int ksize);  // window min
 void dilate(struct Mat *dst, const struct Mat *src, int ksize); // window max
 
+// tmp has the same type and size as src and shares memory with neither src nor
+// dst, and dst does not share memory with src. Scratch memory: one row, as for
+// erode.
+void morph_open(struct Mat *dst, struct Mat *tmp, const struct Mat *src,
+                int ksize); // dilate(erode(src))
+void morph_close(struct Mat *dst, struct Mat *tmp, const struct Mat *src,
+                 int ksize); // erode(dilate(src))
+
 #endif // MORPH_H_
