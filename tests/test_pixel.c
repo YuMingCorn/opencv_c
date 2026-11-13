@@ -94,7 +94,78 @@ static void test_threshold_width_sweep(void) {
     }
 }
 
+static void test_lut_invert(void) {
+    const uchar in[]  = {0, 1, 128, 255, 10, 20};
+    const uchar out[] = {255, 254, 127, 0, 245, 235};
+    uchar       lut[256];
+    for (int i = 0; i < 256; i++)
+        lut[i] = (uchar)(255 - i);
+    struct Mat *src = mat_from_bytes(1, 2, CV_8UC3, in);
+    struct Mat *dst = alloc_mat(1, 2, CV_8UC3);
+    mat_lut(dst, src, lut);
+    CHECK_MAT_BYTES(dst, out);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
+static void test_lut_identity(void) {
+    const int types[] = {CV_8UC1, CV_8UC3, CV_8UC4};
+    uchar     lut[256];
+    for (int i = 0; i < 256; i++)
+        lut[i] = (uchar)i;
+    for (int t = 0; t < 3; t++) {
+        struct Mat *src = alloc_mat(5, 7, types[t]);
+        struct Mat *dst = alloc_mat(5, 7, types[t]);
+        fill_pattern(src, 5);
+        mat_lut(dst, src, lut);
+        CHECK_MAT_BYTES(dst, src->data);
+        free_mat(&src);
+        free_mat(&dst);
+    }
+}
+
+static void test_lut_constant(void) {
+    uchar lut[256];
+    for (int i = 0; i < 256; i++)
+        lut[i] = 7;
+    struct Mat *src = alloc_mat(4, 6, CV_8UC3);
+    struct Mat *dst = alloc_mat(4, 6, CV_8UC3);
+    fill_pattern(src, 1);
+    mat_lut(dst, src, lut);
+    for (size_t i = 0; i < (size_t)dst->rows * dst->step[0]; i++) {
+        CHECK_EQ_INT(dst->data[i], 7);
+    }
+    free_mat(&src);
+    free_mat(&dst);
+}
+
+static void test_lut_width_sweep(void) {
+    uchar lut[256];
+    for (int i = 0; i < 256; i++)
+        lut[i] = (uchar)(i * 3u + 11u);
+    for (int w = 0; w <= 65; w++) {
+        struct Mat *src = alloc_mat(3, w, CV_8UC3);
+        struct Mat *dst = alloc_mat(3, w, CV_8UC3);
+        fill_pattern(src, (unsigned)w);
+        mat_lut(dst, src, lut);
+        for (int y = 0; y < 3; y++) {
+            for (int x = 0; x < w; x++) {
+                const uchar *p = mat_at(src, y, x);
+                const uchar *q = mat_at(dst, y, x);
+                for (int c = 0; c < 3; c++)
+                    CHECK_EQ_INT(q[c], lut[p[c]]);
+            }
+        }
+        free_mat(&src);
+        free_mat(&dst);
+    }
+}
+
 int main(void) {
+    RUN_TEST(test_lut_invert);
+    RUN_TEST(test_lut_identity);
+    RUN_TEST(test_lut_constant);
+    RUN_TEST(test_lut_width_sweep);
     RUN_TEST(test_threshold_types_c3);
     RUN_TEST(test_threshold_types_c1);
     RUN_TEST(test_threshold_c4_alpha_normal);

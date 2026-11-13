@@ -81,3 +81,26 @@ void threshold(struct Mat *dst, const struct Mat *src, uchar thresh,
         kernel(mat_row(src, y), mat_row(dst, y), n, thresh, maxval);
     }
 }
+
+static void lut_row(const uchar *restrict s, uchar *restrict d, int n,
+                    const uchar *lut) {
+    for (int i = 0; i < n; i++) {
+        d[i] = lut[s[i]];
+    }
+}
+
+void mat_lut(struct Mat *dst, const struct Mat *src, const uchar lut[256]) {
+    ASSERT(dst != src && dst->data != src->data);
+    ASSERT(lut != NULL);
+    ASSERT(is_u8_image_type(mat_type(src)));
+    ASSERT(mat_type(dst) == mat_type(src));
+    ASSERT(dst->rows == src->rows && dst->cols == src->cols);
+
+    if (src->rows == 0 || src->cols == 0) {
+        return;
+    }
+    int n = src->cols * (int)mat_channel_num(src);
+    for (int y = 0; y < src->rows; y++) {
+        lut_row(mat_row(src, y), mat_row(dst, y), n, lut);
+    }
+}

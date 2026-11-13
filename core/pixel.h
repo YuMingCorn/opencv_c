@@ -16,4 +16,7 @@ enum ThresholdTypes {
 void threshold(struct Mat *dst, const struct Mat *src, uchar thresh,
                uchar maxval, int type);
 
+// dst[i] = lut[src[i]] for every channel. Same type/size rules as threshold.
+void mat_lut(struct Mat *dst, const struct Mat *src, const uchar lut[256]);
+
 #endif // PIXEL_H_
