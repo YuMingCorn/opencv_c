@@ -11,4 +11,8 @@ void box_filter(struct Mat *dst, const struct Mat *src, int ksize);
 // ksize in {1, 3, 5, 7}. Same types and border as box_filter.
 void gaussian_blur(struct Mat *dst, const struct Mat *src, int ksize);
 
+// 3x3 Sobel derivative, no scaling. (dx, dy) is (1, 0) or (0, 1).
+// src CV_8UC1, dst CV_16SC1 of the same size. Output range is +-1020.
+void sobel(struct Mat *dst, const struct Mat *src, int dx, int dy);
+
 #endif // FILTER_H_
