@@ -29,10 +29,29 @@ static struct Mat *op_equalize(const struct Mat *rgb) {
     return out;
 }
 
+// 1 x 1 CV_32S Otsu threshold of the gray image.
+static struct Mat *op_otsu(const struct Mat *rgb) {
+    struct Mat *gray      = op_gray(rgb);
+    struct Mat *out       = alloc_mat(1, 1, CV_MAKETYPE(CV_32S, 1));
+    *(int32_t *)out->data = (int32_t)otsu_threshold(gray);
+    free_mat(&gray);
+    return out;
+}
+
+static struct Mat *op_otsu_binary(const struct Mat *rgb) {
+    struct Mat *gray = op_gray(rgb);
+    struct Mat *out  = alloc_mat(rgb->rows, rgb->cols, CV_8UC1);
+    threshold(out, gray, otsu_threshold(gray), 255, THRESH_BINARY);
+    free_mat(&gray);
+    return out;
+}
+
 const struct KodakOp kodak_ops[] = {
     {"gray", op_gray},
     {"hist", op_hist},
     {"equalize", op_equalize},
+    {"otsu", op_otsu},
+    {"otsu_binary", op_otsu_binary},
 };
 
 const int kodak_op_count = (int)(sizeof(kodak_ops) / sizeof(kodak_ops[0]));

@@ -3,6 +3,8 @@
 #include <string.h>
 
 #include "improc.h"
+// The Otsu tests reach the static 128-bit helpers, so they compile the source.
+#include "hist.c"
 #include "test_alloc_util.h"
 #include "test_mat_util.h"
 
@@ -352,6 +354,265 @@ static void test_equalize_scratch(void) {
     free_mat(&dst);
 }
 
+// ---- Otsu ------------------------------------------------------------------
+
+static uchar otsu_of_bytes(int rows, int cols, const uchar *in) {
+    struct Mat *src = mat_from_bytes(rows, cols, CV_8UC1, in);
+    uchar       t   = otsu_threshold(src);
+    free_mat(&src);
+    return t;
+}
+
+static void test_otsu_hand(void) {
+    const uchar a[] = {0, 1, 2, 3}; // f(0) = 12, f(1) = 13, f(2) = 12
+    const uchar b[] = {10, 10, 10, 200, 200, 200};
+    const uchar c[] = {1, 2, 3, 4, 5, 6};
+    const uchar d[] = {10, 20, 20, 30, 30, 30, 200, 210};
+    const uchar e[] = {5, 5, 9, 9};
+    const uchar f[] = {0, 255};
+    const uchar g[] = {77, 77, 77, 77};
+    CHECK_EQ_INT(otsu_of_bytes(1, 4, a), 1);
+    CHECK_EQ_INT(otsu_of_bytes(2, 3, b), 10);
+    CHECK_EQ_INT(otsu_of_bytes(1, 6, c), 3);
+    CHECK_EQ_INT(otsu_of_bytes(2, 4, d), 30);
+    CHECK_EQ_INT(otsu_of_bytes(1, 4, e), 5);
+    CHECK_EQ_INT(otsu_of_bytes(1, 2, f), 0);
+    CHECK_EQ_INT(otsu_of_bytes(1, 4, g), 0);
+}
+
+static void test_otsu_degenerate(void) {
+    uint32_t hist[256];
+    memset(hist, 0, sizeof hist);
+    CHECK_EQ_INT(otsu_threshold_hist(hist), 0); // empty
+    hist[255] = 9;
+    CHECK_EQ_INT(otsu_threshold_hist(hist), 0); // one level, the top one
+    hist[0] = 1;
+    CHECK_EQ_INT(otsu_threshold_hist(hist), 0); // levels 0 and 255
+    memset(hist, 0, sizeof hist);
+    hist[254] = 1;
+    hist[255] = 1;
+    CHECK_EQ_INT(otsu_threshold_hist(hist), 254);
+    struct Mat *empty = alloc_mat(0, 4, CV_8UC1);
+    CHECK_EQ_INT(otsu_threshold(empty), 0);
+    free_mat(&empty);
+}
+
+// Exact reference for small totals. f(t) = n / d with n = s0^2 * w1 + s1^2 * w0
+// and d = w0 * w1; fractions are compared by cross multiplication. total <= 255
+// keeps every product below 2^64.
+static uchar ref_otsu_small(const uint32_t hist[256]) {
+    uint64_t total = 0, sum = 0;
+    for (int i = 0; i < 256; i++) {
+        total += hist[i];
+        sum += (uint64_t)hist[i] * (uint64_t)i;
+    }
+    int      found  = 0;
+    uchar    best_t = 0;
+    uint64_t best_n = 0, best_d = 1;
+    for (int t = 0; t < 255; t++) {
+        uint64_t w0 = 0, s0 = 0;
+        for (int i = 0; i <= t; i++) {
+            w0 += hist[i];
+            s0 += (uint64_t)hist[i] * (uint64_t)i;
+        }
+        uint64_t w1 = total - w0;
+        if (w0 == 0 || w1 == 0) {
+            continue;
+        }
+        uint64_t s1 = sum - s0;
+        uint64_t n  = s0 * s0 * w1 + s1 * s1 * w0;
+        uint64_t d  = w0 * w1;
+        if (!found || n * best_d > best_n * d) {
+            found  = 1;
+            best_t = (uchar)t;
+            best_n = n;
+            best_d = d;
+        }
+    }
+    return best_t;
+}
+
+static void test_otsu_random_small_vs_reference(void) {
+    for (int iter = 0; iter < 3000; iter++) {
+        uint32_t hist[256];
+        memset(hist, 0, sizeof hist);
+        int pixels = 1 + (int)(lcg_u8() % 250);
+        // A narrow, shifting value range makes exact ties common.
+        int range = 1 + lcg_u8() % 55;
+        int base  = lcg_u8() % 200;
+        for (int p = 0; p < pixels; p++) {
+            hist[base + lcg_u8() % range]++;
+        }
+        CHECK_EQ_INT(otsu_threshold_hist(hist), ref_otsu_small(hist));
+    }
+}
+
+#ifdef __SIZEOF_INT128__
+// Host-only reference for larger counts: with a total of at most 2^16,
+// s0^2 * w1 + s1^2 * w0 < 2^66, d < 2^32 and the cross product < 2^98.
+static uchar ref_otsu_mid(const uint32_t hist[256]) {
+    unsigned __int128 total = 0, sum = 0;
+    for (int i = 0; i < 256; i++) {
+        total += hist[i];
+        sum += (unsigned __int128)hist[i] * (unsigned)i;
+    }
+    int               found  = 0;
+    uchar             best_t = 0;
+    unsigned __int128 best_n = 0, best_d = 1;
+    unsigned __int128 w0 = 0, s0 = 0;
+    for (int t = 0; t < 255; t++) {
+        w0 += hist[t];
+        s0 += (unsigned __int128)hist[t] * (unsigned)t;
+        unsigned __int128 w1 = total - w0;
+        if (w0 == 0 || w1 == 0) {
+            continue;
+        }
+        unsigned __int128 s1 = sum - s0;
+        unsigned __int128 n  = s0 * s0 * w1 + s1 * s1 * w0;
+        unsigned __int128 d  = w0 * w1;
+        if (!found || n * best_d > best_n * d) {
+            found  = 1;
+            best_t = (uchar)t;
+            best_n = n;
+            best_d = d;
+        }
+    }
+    return best_t;
+}
+
+static void test_otsu_random_mid_vs_int128(void) {
+    for (int iter = 0; iter < 1000; iter++) {
+        uint32_t hist[256];
+        memset(hist, 0, sizeof hist);
+        int range = 1 + lcg_u8() % 255;
+        int base  = lcg_u8() % (256 - range + 1);
+        for (int p = 0; p < 20; p++) {
+            lcg_state    = lcg_state * 1664525u + 1013904223u;
+            uint32_t cnt = (lcg_state >> 8) % 3000u;
+            hist[base + lcg_u8() % range] += cnt;
+        }
+        CHECK_EQ_INT(otsu_threshold_hist(hist), ref_otsu_mid(hist));
+    }
+}
+#endif
+
+static void test_otsu_overflow_probes(void) {
+    uint32_t hist[256];
+    memset(hist, 0, sizeof hist);
+    hist[0]   = 1u << 23;
+    hist[255] = 1u << 23;
+    CHECK_EQ_INT(otsu_threshold_hist(hist), 0);
+
+    const int ks[] = {0, 1, 100, 254};
+    for (int i = 0; i < 4; i++) {
+        memset(hist, 0, sizeof hist);
+        hist[255] = (1u << 24) - 1u;
+        hist[ks[i]] += 1;
+        CHECK_EQ_INT(otsu_threshold_hist(hist), ks[i]);
+    }
+
+    // Three levels with counts near 2^24 in total: the plateau of the best
+    // split starts at its lowest populated level.
+    memset(hist, 0, sizeof hist);
+    hist[10]  = 9000000u;
+    hist[200] = 7000000u;
+    hist[255] = 700000u;
+    CHECK_EQ_INT(otsu_threshold_hist(hist), 10);
+
+    // Exactly 2^24 pixels is accepted, one more is rejected.
+    memset(hist, 0, sizeof hist);
+    hist[3] = 1u << 24;
+    CHECK_EQ_INT(otsu_threshold_hist(hist), 0);
+    hist[4] = 1;
+    CHECK_ASSERTS(otsu_threshold_hist(hist));
+}
+
+static void test_u128_multiply(void) {
+    struct U128 r = mul_u64(UINT64_MAX, UINT64_MAX);
+    CHECK(r.hi == UINT64_MAX - 1u);
+    CHECK(r.lo == 1u);
+    r = mul_u64(0, UINT64_MAX);
+    CHECK(r.hi == 0 && r.lo == 0);
+    r = mul_u64(1ull << 31, 1ull << 31); // 2^62
+    CHECK(r.hi == 0 && r.lo == (1ull << 62));
+    r = mul_u64(1ull << 32, 1ull << 32); // 2^64
+    CHECK(r.hi == 1 && r.lo == 0);
+    CHECK(u128_greater(mul_u64(1ull << 40, 1ull << 40),
+                       mul_u64(UINT64_MAX, 1ull << 15)));
+    CHECK(!u128_greater(mul_u64(5, 7), mul_u64(35, 1)));
+    CHECK(!u128_greater(mul_u64(5, 6), mul_u64(35, 1)));
+#ifdef __SIZEOF_INT128__
+    const uint64_t v[] = {1,
+                          2,
+                          0xFFFFFFFFull,
+                          0x100000000ull,
+                          0xFFFFFFFFFFFFull,
+                          0x8000000000000001ull,
+                          0x123456789ABCDEF0ull,
+                          UINT64_MAX - 3};
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 8; j++) {
+            unsigned __int128 want = (unsigned __int128)v[i] * v[j];
+            struct U128       got  = mul_u64(v[i], v[j]);
+            CHECK(got.hi == (uint64_t)(want >> 64) && got.lo == (uint64_t)want);
+        }
+    }
+#endif
+}
+
+static void test_otsu_width_sweep(void) {
+    for (int w = 0; w <= 65; w++) {
+        struct Mat *src = alloc_mat(3, w, CV_8UC1);
+        for (int y = 0; y < 3; y++) {
+            for (int x = 0; x < w; x++) {
+                // Two populations around 60 and 180.
+                uchar base         = (lcg_u8() & 1) ? 180 : 60;
+                mat_row(src, y)[x] = (uchar)(base + lcg_u8() % 20);
+            }
+        }
+        uint32_t hist[256];
+        calc_hist(hist, src);
+        uchar t = otsu_threshold(src);
+        CHECK_EQ_INT(t, otsu_threshold_hist(hist));
+        CHECK_EQ_INT(t, ref_otsu_small(hist)); // 3 * 65 = 195 pixels at most
+        free_mat(&src);
+    }
+}
+
+static void test_otsu_binarize(void) {
+    const uchar in[]  = {10, 20, 20, 30, 30, 30, 200, 210};
+    const uchar out[] = {0, 0, 0, 0, 0, 0, 255, 255};
+    struct Mat *src   = mat_from_bytes(2, 4, CV_8UC1, in);
+    struct Mat *dst   = alloc_mat(2, 4, CV_8UC1);
+    threshold(dst, src, otsu_threshold(src), 255, THRESH_BINARY);
+    CHECK_MAT_BYTES(dst, out);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
+static void test_otsu_misuse_and_scratch(void) {
+    struct Mat *c3 = alloc_mat(2, 2, CV_8UC3);
+    CHECK_ASSERTS(otsu_threshold(c3));
+    CHECK_ASSERTS(otsu_threshold(NULL));
+    CHECK_ASSERTS(otsu_threshold_hist(NULL));
+    free_mat(&c3);
+
+    struct Mat *src = alloc_mat(6, 9, CV_8UC1);
+    fill_pattern(src, 3);
+    alloc_counter_start();
+    (void)otsu_threshold(src);
+    alloc_counter_stop();
+    CHECK_EQ_INT(alloc_stats.allocs, 1);
+    CHECK_EQ_INT(alloc_stats.frees, 1);
+    CHECK(alloc_stats.peak >= HIST_OTSU_SCRATCH &&
+          alloc_stats.peak <= HIST_OTSU_SCRATCH + 32); // + alignment
+
+    improc_set_allocator(null_alloc, null_free);
+    CHECK_ASSERTS((void)otsu_threshold(src));
+    improc_set_allocator(NULL, NULL);
+    free_mat(&src);
+}
+
 int main(void) {
     RUN_TEST(test_calc_hist_hand);
     RUN_TEST(test_calc_hist_extremes);
@@ -371,5 +632,16 @@ int main(void) {
     RUN_TEST(test_equalize_zero_size);
     RUN_TEST(test_equalize_misuse);
     RUN_TEST(test_equalize_scratch);
+    RUN_TEST(test_otsu_hand);
+    RUN_TEST(test_otsu_degenerate);
+    RUN_TEST(test_otsu_random_small_vs_reference);
+#ifdef __SIZEOF_INT128__
+    RUN_TEST(test_otsu_random_mid_vs_int128);
+#endif
+    RUN_TEST(test_otsu_overflow_probes);
+    RUN_TEST(test_u128_multiply);
+    RUN_TEST(test_otsu_width_sweep);
+    RUN_TEST(test_otsu_binarize);
+    RUN_TEST(test_otsu_misuse_and_scratch);
     return test_finish();
 }
