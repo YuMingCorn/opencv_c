@@ -14,7 +14,10 @@ difference in one op never leaks into the next. Arrays keep the channel order
 of the C code (channel 0 of a Mat is channel 0 of the array), not OpenCV's BGR
 order.
 
-Exit status is 1 when any op exceeds its tolerance on any image.
+Ops that have no dump file for any image (other modules) are skipped, so one
+module's dump can be checked alone. Exit status is 1 when any op exceeds its
+tolerance, when the dump lacks any of the 24 images (unless --allow-partial),
+when a requested op is unknown or has no dump, or when no op was compared.
 """
 
 import argparse
@@ -72,6 +75,9 @@ def load_ref_modules(ref_dir):
     return ops
 
 
+KODAK_IMAGES = [f"kodim{i:02d}" for i in range(1, 25)]
+
+
 def find_images(dump_dir):
     names = []
     for path in glob.glob(os.path.join(dump_dir, "kodim*_src.png")):
@@ -88,6 +94,8 @@ def main():
     parser.add_argument("--ref", default=os.path.join(here, "opencv_ref"),
                         help="directory with reference modules")
     parser.add_argument("--ops", nargs="*", help="only these ops")
+    parser.add_argument("--allow-partial", action="store_true",
+                        help="accept a dump that holds fewer than 24 images")
     args = parser.parse_args()
 
     ops = load_ref_modules(args.ref)
@@ -98,12 +106,28 @@ def main():
     unknown = [op for op in selected if op not in ops]
     if unknown:
         sys.exit(f"unknown ops: {', '.join(unknown)}")
+    if not ops:
+        sys.exit(f"no reference ops loaded from {args.ref}")
+    missing_images = [n for n in KODAK_IMAGES if n not in images]
+    if missing_images and not args.allow_partial:
+        sys.exit(f"dump holds {len(images)} of {len(KODAK_IMAGES)} images "
+                 f"(missing {', '.join(missing_images[:4])}"
+                 f"{', ...' if len(missing_images) > 4 else ''}); "
+                 "use --allow-partial to accept")
 
     print(f"OpenCV {cv2.__version__}, {len(images)} images, {len(selected)} ops")
     print(f"{'op':<16}{'module':<9}{'max diff':>9}{'tol':>5}{'diff px %':>11}  result")
     failed = False
+    compared = 0
+    skipped = 0
     for op in selected:
         module, ref_fn, tolerance, note = ops[op]
+        if not args.ops and not any(Context(args.dump, i).has(op)
+                                    for i in images):
+            skipped += 1
+            print(f"{op:<16}{module:<9}{'-':>9}{tolerance:>5}{'-':>11}  "
+                  "SKIP (no dump files)")
+            continue
         worst = 0
         differing = 0
         total = 0
@@ -124,13 +148,20 @@ def main():
             total += diff.size
         if error:
             failed = True
+            compared += 1
             print(f"{op:<16}{module:<9}{'-':>9}{tolerance:>5}{'-':>11}  ERROR {error}")
             continue
+        compared += 1
         ok = worst <= tolerance
         failed |= not ok
         percent = 100.0 * differing / total if total else 0.0
         print(f"{op:<16}{module:<9}{worst:>9}{tolerance:>5}{percent:>11.4f}  "
               f"{'ok' if ok else 'FAIL'}  {note}")
+    print(f"summary: {compared} compared, {skipped} skipped, "
+          f"{'FAILED' if failed or compared == 0 else 'ok'}")
+    if compared == 0:
+        print("error: no op was compared", file=sys.stderr)
+        return 1
     return 1 if failed else 0
 
 

@@ -88,16 +88,22 @@ struct Mat *alloc_mat(int rows, int cols, int type) {
     return mat;
 }
 
+void mat_synthetic_pixel(int rows, int cols, int i, int j, uchar out[3]) {
+    // 64-bit products: j * 255 overflows int32 for j > 8,421,504.
+    int64_t w = cols > 1 ? (int64_t)cols - 1 : 1;
+    int64_t h = rows > 1 ? (int64_t)rows - 1 : 1;
+    int64_t d = (int64_t)rows + cols > 2 ? (int64_t)rows + cols - 2 : 1;
+    out[0]    = (uchar)((int64_t)j * 255 / w);
+    out[1]    = (uchar)((int64_t)i * 255 / h);
+    out[2]    = (uchar)(((int64_t)i + j) * 255 / d);
+}
+
 struct Mat *alloc_mat_synthetic(int rows, int cols) {
     struct Mat *mat = alloc_mat(rows, cols, CV_8UC3);
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
-            uchar *p = MAT_AT_ELEM_PTR(*mat, uchar, i, j);
-            p[0]     = (uchar)((int32_t)j * 255 / (cols > 1 ? cols - 1 : 1));
-            p[1]     = (uchar)((int32_t)i * 255 / (rows > 1 ? rows - 1 : 1));
-            p[2] = (uchar)(((int32_t)i + j) * 255 /
-                           ((int32_t)rows + cols > 2 ? (int32_t)rows + cols - 2
-                                                     : 1));
+            mat_synthetic_pixel(rows, cols, i, j,
+                                MAT_AT_ELEM_PTR(*mat, uchar, i, j));
         }
     }
     return mat;

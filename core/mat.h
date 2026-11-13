@@ -140,6 +140,11 @@ struct Mat {
 int mat_init(struct Mat *mat, int rows, int cols, int type, void *data,
              size_t data_size);
 
+// One pixel of the alloc_mat_synthetic pattern for an image of rows x cols.
+// 0 <= i < rows and 0 <= j < cols. Exposed so tests can reach extreme sizes
+// without allocating them.
+void mat_synthetic_pixel(int rows, int cols, int i, int j, uchar out[3]);
+
 #ifndef IMPROC_NO_MALLOC
 // Allocates a Mat that owns its data. Returns NULL on invalid size or
 // allocation failure.

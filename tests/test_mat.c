@@ -172,6 +172,36 @@ static void test_mat_init_rejects_bad_input(void) {
     CHECK(mat_create(1, INT_MAX / 3 + 1, CV_8UC3) == NULL);
 }
 
+static void test_mat_init_rejects_size_overflow(void) {
+    struct Mat m;
+    uchar      buf[8] = {0};
+    // 32 bytes per pixel: rows * cols * 32 overflows size_t on 32- and 64-bit
+    // targets, and cols * 4 channels still fits int.
+    CHECK_EQ_INT(mat_init(&m, INT_MAX, INT_MAX / 4, CV_64FC4, buf, SIZE_MAX),
+                 -1);
+    // Only the row stride overflows on 32-bit size_t; rows == 1.
+    if (SIZE_MAX == 0xFFFFFFFFu) {
+        CHECK_EQ_INT(mat_init(&m, 1, INT_MAX / 4, CV_64FC4, buf, SIZE_MAX), -1);
+    }
+}
+
+static void test_synthetic_pixel_extreme(void) {
+    uchar p[3];
+    // The old int32 products j * 255 and (i + j) * 255 overflow here.
+    mat_synthetic_pixel(INT_MAX, INT_MAX, INT_MAX - 2, INT_MAX - 2, p);
+    CHECK_EQ_INT(p[0], 254);
+    CHECK_EQ_INT(p[1], 254);
+    CHECK_EQ_INT(p[2], 254);
+    mat_synthetic_pixel(INT_MAX, INT_MAX, 0, INT_MAX - 2, p);
+    CHECK_EQ_INT(p[0], 254);
+    CHECK_EQ_INT(p[1], 0);
+    CHECK_EQ_INT(p[2], 127);
+    // Smallest column past the old overflow point 8,421,504 (= INT_MAX / 255 + 1).
+    mat_synthetic_pixel(1, 8421505, 0, 8421504, p);
+    CHECK_EQ_INT(p[0], 255);
+    CHECK_EQ_INT(p[2], 255);
+}
+
 static void test_mat_init_zero_sized(void) {
     struct Mat m;
     CHECK_EQ_INT(mat_init(&m, 0, 5, CV_8UC1, NULL, 0), 0);
@@ -256,6 +286,8 @@ int main(void) {
     RUN_TEST(test_cv_16s_types);
     RUN_TEST(test_mat_init_layout);
     RUN_TEST(test_mat_init_rejects_bad_input);
+    RUN_TEST(test_mat_init_rejects_size_overflow);
+    RUN_TEST(test_synthetic_pixel_extreme);
     RUN_TEST(test_mat_init_zero_sized);
     RUN_TEST(test_mat_init_dst_matches_alloc);
     RUN_TEST(test_heap_flag);
