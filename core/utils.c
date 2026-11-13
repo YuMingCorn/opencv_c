@@ -1,15 +1,71 @@
 #include "utils.h"
+
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifndef IMPROC_NO_STDIO
+#include <stdio.h>
+#endif
+
 #define ALIGN 16
 
+static improc_assert_fn assert_handler = NULL;
+
+void improc_set_assert_handler(improc_assert_fn handler) {
+    assert_handler = handler;
+}
+
+_Noreturn void improc_assert_fail(const char *expr, const char *file,
+                                  int line) {
+    if (assert_handler != NULL) {
+        assert_handler(expr, file, line);
+    }
+#ifdef IMPROC_NO_STDIO
+    abort();
+#else
+    if (expr != NULL) {
+        fprintf(stderr, "Assertion failed: %s, file: %s:%d\n", expr, file,
+                line);
+    } else {
+        fprintf(stderr, "Assertion failed at line %d\n", line);
+    }
+    exit(EXIT_FAILURE);
+#endif
+}
+
+#ifndef IMPROC_NO_MALLOC
+static improc_alloc_fn alloc_hook = malloc;
+static improc_free_fn  free_hook  = free;
+#else
+static improc_alloc_fn alloc_hook = NULL;
+static improc_free_fn  free_hook  = NULL;
+#endif
+
+void improc_set_allocator(improc_alloc_fn alloc_fn, improc_free_fn free_fn) {
+    ASSERT((alloc_fn == NULL) == (free_fn == NULL));
+    if (alloc_fn != NULL) {
+        alloc_hook = alloc_fn;
+        free_hook  = free_fn;
+        return;
+    }
+#ifndef IMPROC_NO_MALLOC
+    alloc_hook = malloc;
+    free_hook  = free;
+#else
+    alloc_hook = NULL;
+    free_hook  = NULL;
+#endif
+}
+
 void *fast_malloc(size_t size) {
+    if (alloc_hook == NULL) {
+        return NULL;
+    }
     size_t extra = sizeof(void *) + (ALIGN - 1);
     if (size > SIZE_MAX - extra) {
         return NULL;
     }
-    unsigned char *mem = (unsigned char *)malloc(size + extra);
+    unsigned char *mem = (unsigned char *)alloc_hook(size + extra);
     if (mem == NULL) {
         return NULL;
     }
@@ -21,10 +77,10 @@ void *fast_malloc(size_t size) {
 }
 
 void fast_free(void *ptr) {
-    if (ptr == NULL) {
+    if (ptr == NULL || free_hook == NULL) {
         return;
     }
-    // Sneak *behind* user pointer to find address returned by malloc
+    // Sneak *behind* user pointer to find address returned by the allocator
     // Use that address to free
-    free(((void **)ptr)[-1]);
+    free_hook(((void **)ptr)[-1]);
 }
