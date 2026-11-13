@@ -11,35 +11,94 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
 
-find_package(Threads REQUIRED)
+# Freestanding targets (bare-metal toolchains use CMAKE_SYSTEM_NAME Generic)
+# default to the portable core only.
+if(CMAKE_SYSTEM_NAME STREQUAL "Generic")
+    set(_improc_bare ON)
+else()
+    set(_improc_bare OFF)
+endif()
 
-add_library(improc STATIC
+option(IMPROC_CORE_ONLY "Build only improc_core (no IO, demo, bench, tests)" ${_improc_bare})
+option(IMPROC_NO_STDIO "Core never includes <stdio.h>" ${_improc_bare})
+option(IMPROC_NO_MALLOC "No default allocator; alloc_mat/free_mat not compiled" OFF)
+option(IMPROC_ENABLE_FLOAT "Compile the float sources (IMPROC_HAS_FLOAT=1)" ON)
+option(IMPROC_ASSERT_TERSE "ASSERT passes NULL, NULL, line to the handler" OFF)
+option(IMPROC_WERROR "Treat compiler warnings as errors" OFF)
+set(IMPROC_KODAK_DIR "${CMAKE_SOURCE_DIR}/datasets/kodak"
+    CACHE PATH "Directory holding kodim01.png ... kodim24.png")
+
+function(improc_warnings target)
+    target_compile_options(${target} PRIVATE -Wall -Wextra)
+    if(IMPROC_WERROR)
+        target_compile_options(${target} PRIVATE -Werror)
+    endif()
+endfunction()
+
+# ---- improc_core: portable, no OS dependency -------------------------------
+set(IMPROC_CORE_SOURCES
     core/color.c
     core/pixel.c
     core/filter.c
     core/geometry.c
     core/mat.c
-    core/utils.c)
-target_include_directories(improc PUBLIC core)
-target_compile_options(improc PRIVATE -Wall -Wextra)
-target_link_libraries(improc PUBLIC Threads::Threads)
-if(UNIX)
-    target_link_libraries(improc PUBLIC m)
+    core/utils.c
+    # lane-append: core sources
+)
+
+# Sources that need float support (not compiled when IMPROC_ENABLE_FLOAT=OFF).
+set(IMPROC_FLOAT_SOURCES
+    # lane-append: float sources
+)
+
+add_library(improc_core STATIC ${IMPROC_CORE_SOURCES})
+if(IMPROC_ENABLE_FLOAT AND IMPROC_FLOAT_SOURCES)
+    target_sources(improc_core PRIVATE ${IMPROC_FLOAT_SOURCES})
+endif()
+target_include_directories(improc_core PUBLIC core)
+improc_warnings(improc_core)
+if(IMPROC_ENABLE_FLOAT)
+    target_compile_definitions(improc_core PUBLIC IMPROC_HAS_FLOAT=1)
+    if(UNIX)
+        target_link_libraries(improc_core PUBLIC m)
+    endif()
+else()
+    target_compile_definitions(improc_core PUBLIC IMPROC_HAS_FLOAT=0)
+endif()
+if(IMPROC_NO_STDIO)
+    target_compile_definitions(improc_core PUBLIC IMPROC_NO_STDIO=1)
+endif()
+if(IMPROC_NO_MALLOC)
+    target_compile_definitions(improc_core PUBLIC IMPROC_NO_MALLOC=1)
+endif()
+if(IMPROC_ASSERT_TERSE)
+    target_compile_definitions(improc_core PUBLIC IMPROC_ASSERT_TERSE=1)
+endif()
+if(IMPROC_CORE_ONLY)
+    target_compile_definitions(improc_core PUBLIC IMPROC_CORE_ONLY=1)
+    return()
 endif()
 
+# ---- improc: core plus hosted image IO -------------------------------------
+find_package(Threads REQUIRED)
+
+add_library(improc STATIC core/mat_io.c)
+improc_warnings(improc)
+target_link_libraries(improc PUBLIC improc_core Threads::Threads)
+
 add_executable(demo main.c)
-target_compile_options(demo PRIVATE -Wall -Wextra)
+improc_warnings(demo)
 target_link_libraries(demo PRIVATE improc)
 
 add_executable(bench_gray benchmarks/bench_gray.c)
-target_compile_options(bench_gray PRIVATE -Wall -Wextra)
+improc_warnings(bench_gray)
 target_link_libraries(bench_gray PRIVATE improc)
 
 enable_testing()
 
 function(add_improc_test name)
     add_executable(${name} tests/${name}.c)
-    target_compile_options(${name} PRIVATE -Wall -Wextra)
+    improc_warnings(${name})
     target_link_libraries(${name} PRIVATE improc)
     add_test(NAME ${name} COMMAND ${name}
              WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -52,6 +111,9 @@ add_improc_test(test_pixel)
 add_improc_test(test_filter)
 add_improc_test(test_geometry)
 add_improc_test(test_io)
+# lane-append: tests
+
+# lane-append: kodak tests
 
 add_test(NAME demo_smoke COMMAND demo
          WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

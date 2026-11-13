@@ -7,5 +7,10 @@
 #include "mat.h"
 #include "pixel.h"
 #include "utils.h"
+// lane-append: includes
+
+#ifndef IMPROC_CORE_ONLY
+#include "mat_io.h"
+#endif
 
 #endif // IMPROC_H_

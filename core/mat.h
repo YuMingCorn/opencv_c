@@ -1,9 +1,7 @@
 #ifndef MAT_H_
 #define MAT_H_
 
-#include <assert.h>
 #include <stddef.h>
-#include <stdlib.h>
 
 #define MAGIC_VAL 0x42FF0000
 #define CV_8U     0 // 8-bit unsigned
@@ -24,13 +22,13 @@
     Mask: 4095 (binary 1111 1111 1111)
  */
 #define CV_MAT_TYPE_MASK   (CV_DEPTH_MAX * CV_CN_MAX - 1)
-#define CV_MAT_TYPE(flags) ((flags)&CV_MAT_TYPE_MASK)
+#define CV_MAT_TYPE(flags) ((flags) & CV_MAT_TYPE_MASK)
 
 /**
     Mask to extract depth information (binary 0111, decimal 7)
  */
 #define CV_MAT_DEPTH_MASK   (CV_DEPTH_MAX - 1)
-#define CV_MAT_DEPTH(flags) ((flags)&CV_MAT_DEPTH_MASK)
+#define CV_MAT_DEPTH(flags) ((flags) & CV_MAT_DEPTH_MASK)
 
 /**
     Channel mask: 4088 (binary 1111 1111 1000)
@@ -40,7 +38,7 @@
 /**
     Shift right to isolate channel bits, then add 1 to get channel count
 */
-#define CV_MAT_CN(flags) ((((flags)&CV_MAT_CN_MASK) >> CV_CN_SHIFT) + 1)
+#define CV_MAT_CN(flags) ((((flags) & CV_MAT_CN_MASK) >> CV_CN_SHIFT) + 1)
 
 /**
    Size of each channel item,
@@ -60,7 +58,8 @@
     This allows us to represent image type in a single integer containing both
     depth and channel information.
 */
-#define CV_MAKETYPE(depth, cn) (CV_MAT_DEPTH(depth) + (((cn)-1) << CV_CN_SHIFT))
+#define CV_MAKETYPE(depth, cn)                                                 \
+    (CV_MAT_DEPTH(depth) + (((cn) - 1) << CV_CN_SHIFT))
 
 /**
  create cv::type
@@ -127,18 +126,19 @@ struct Mat {
     uchar *data;
 };
 
+#ifndef IMPROC_NO_MALLOC
+// Allocates a Mat that owns its data. Returns NULL on invalid size or
+// allocation failure.
+struct Mat *mat_create(int rows, int cols, int type);
+
+// Same as mat_create, but ASSERTs instead of returning NULL.
 struct Mat *alloc_mat(int rows, int cols, int type);
 
 // CV_8UC3 test pattern: R ramps by column, G by row, B along the diagonal
 struct Mat *alloc_mat_synthetic(int rows, int cols);
 
-struct Mat *alloc_mat_from_buffer(const uchar *buffer, size_t buffer_size);
-struct Mat *alloc_mat_from_file(char const *filename);
-
-// Returns 0 on success, -1 on failure. Format is chosen by extension (.png, .jpg, .jpeg).
-int mat_write(const char *filename, const struct Mat *mat);
-
 void free_mat(struct Mat **mat);
+#endif
 
 // mat index
 static inline uchar *mat_row(const struct Mat *m, int row) {
@@ -146,8 +146,6 @@ static inline uchar *mat_row(const struct Mat *m, int row) {
 }
 
 void *mat_at(const struct Mat *mat, int row, int col);
-
-void mat_info(const struct Mat *mat);
 
 // Mat attribute
 size_t mat_depth(const struct Mat *self);
