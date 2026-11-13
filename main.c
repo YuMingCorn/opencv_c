@@ -49,7 +49,8 @@ static struct Mat *to_rgb(const struct Mat *src) {
 
 /* Usage: demo [input-image] [output-prefix]
  * Without an input image, a synthetic RGB test pattern is used.
- * Writes 13 PNG files named <output-prefix><step>.png (default prefix out_). */
+ * Writes 24 PNG files named <output-prefix><step>.png (default prefix out_),
+ * plus f32_roundtrip.png when the float sources are built (25 in total). */
 int main(int argc, char **argv) {
     const char *input  = argc > 1 ? argv[1] : NULL;
     const char *prefix = argc > 2 ? argv[2] : "out_";
@@ -129,6 +130,55 @@ int main(int argc, char **argv) {
     resize(twice, src, INTER_NEAREST);
     save(prefix, "double_nearest", twice, &failures);
 
+    /* Phase 2: morphology. open/close run on the Otsu binary image. */
+    erode(out, src, 5);
+    save(prefix, "erode", out, &failures);
+    dilate(out, src, 5);
+    save(prefix, "dilate", out, &failures);
+
+    struct Mat *eq = alloc_mat(rows, cols, CV_8UC1);
+    equalize_hist(eq, gray);
+    save(prefix, "equalize", eq, &failures);
+
+    struct Mat *bin = alloc_mat(rows, cols, CV_8UC1);
+    struct Mat *mtm = alloc_mat(rows, cols, CV_8UC1);
+    struct Mat *mor = alloc_mat(rows, cols, CV_8UC1);
+    threshold(bin, gray, otsu_threshold(gray), 255, THRESH_BINARY);
+    save(prefix, "otsu", bin, &failures);
+    morph_open(mor, mtm, bin, 5);
+    save(prefix, "open", mor, &failures);
+    morph_close(mor, mtm, bin, 5);
+    save(prefix, "close", mor, &failures);
+
+    /* HSV and YUV, and the round trip back to RGB. */
+    struct Mat *conv = alloc_mat(rows, cols, CV_8UC3);
+    cvt_color(conv, src, COLOR_RGB2HSV);
+    save(prefix, "hsv", conv, &failures);
+    cvt_color(out, conv, COLOR_HSV2RGB);
+    save(prefix, "hsv_roundtrip", out, &failures);
+    cvt_color(conv, src, COLOR_RGB2YUV);
+    save(prefix, "yuv", conv, &failures);
+    cvt_color(out, conv, COLOR_YUV2RGB);
+    save(prefix, "yuv_roundtrip", out, &failures);
+
+    /* INTER_AREA is the right choice for shrinking. */
+    resize(half, src, INTER_AREA);
+    save(prefix, "half_area", half, &failures);
+
+#if IMPROC_HAS_FLOAT
+    /* 8-bit -> float in [0, 1] -> 8-bit is the identity. */
+    struct Mat *norm = alloc_mat(rows, cols, CV_32FC3);
+    convert_to(norm, src, 1.0f / 255.0f, 0.0f);
+    convert_to(out, norm, 255.0f, 0.0f);
+    save(prefix, "f32_roundtrip", out, &failures);
+    free_mat(&norm);
+#endif
+
+    free_mat(&conv);
+    free_mat(&mor);
+    free_mat(&mtm);
+    free_mat(&bin);
+    free_mat(&eq);
     free_mat(&twice);
     free_mat(&half);
     free_mat(&edge);

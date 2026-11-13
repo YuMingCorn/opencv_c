@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 980" width="1280" height="980" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1170" width="1280" height="1170" role="img" aria-labelledby="t d">
 <title id="t">運算函式的共同流程</title>
-<desc id="d">所有影像運算共用的骨架：呼叫端配置 dst，運算函式先 ASSERT 前置條件，再逐列呼叫 static row kernel。右側列出各 op 如何選 row kernel，以及 cvt_color 的表驅動 dispatch。</desc>
+<desc id="d">所有影像運算共用的骨架：呼叫端配置 dst，運算函式先 ASSERT 前置條件，再逐列呼叫 static row kernel。需要暫存的運算先檢查大小並用 fast_malloc 配置，失敗經 improc_scratch_check 走 ASSERT。ASSERT 失敗交給 improc_assert_fail：先呼叫可選的 handler，再 exit 或 abort。右側列出各 op 如何選 row kernel，以及 cvt_color 的 20 列表驅動 dispatch。</desc>
 <defs>
 <style>
 svg{font-family:"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC","Helvetica Neue",Arial,sans-serif;font-size:13px}
@@ -24,12 +24,12 @@ text{fill:#1F2328}
 <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57606A"/></marker>
 <marker id="arr-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#CF222E"/></marker>
 </defs>
-<rect x="0" y="0" width="1280" height="980" rx="8" fill="#FFFFFF" stroke="#D0D7DE"/>
+<rect x="0" y="0" width="1280" height="1170" rx="8" fill="#FFFFFF" stroke="#D0D7DE"/>
 <text x="32" y="44" class="ttl">運算函式的共同流程：ASSERT 前置條件 → 逐列迴圈 → static row kernel</text>
-<text x="32" y="66" class="sub">core/color.c、pixel.c、geometry.c；filter 與 resize 的內部細節見圖 4、圖 5</text>
+<text x="32" y="66" class="sub">core/color.c、pixel.c、geometry.c；morph、hist、convert_f32 的前置條件寫法相同；filter 與 resize 的內部細節見圖 4、圖 5</text>
 
 <!-- ===== Left column: common skeleton ===== -->
-<rect x="32" y="90" width="438" height="858" rx="8" class="panel"/>
+<rect x="32" y="90" width="438" height="1040" rx="8" class="panel"/>
 <text x="48" y="112" class="h">共同骨架</text>
 
 <rect x="56" y="130" width="396" height="64" rx="6" class="exe"/>
@@ -59,10 +59,21 @@ text{fill:#1F2328}
 <text x="99" y="606" class="m s12">int n, ...)</text>
 <text x="70" y="627" class="s12 sec">只處理一列；不做檢查（各 op 的實際 kernel 見右側）</text>
 
-<rect x="56" y="690" width="396" height="70" rx="6" class="err"/>
-<text x="70" y="710">ASSERT 失敗（utils.h:8-15）</text>
-<text x="70" y="728" class="m s12">fprintf(stderr, "Assertion failed: ...")</text>
-<text x="70" y="744" class="m s12">exit(EXIT_FAILURE)</text>
+<rect x="56" y="690" width="396" height="100" rx="6" class="err"/>
+<text x="70" y="710">ASSERT 失敗 → improc_assert_fail（utils.c:20-36）</text>
+<text x="70" y="729" class="m s11">1. 有 handler 就先呼叫它（handler 可 longjmp）</text>
+<text x="70" y="746" class="m s11">2. 否則 fprintf(stderr, "Assertion failed: ...")</text>
+<text x="70" y="763" class="m s11">   exit(EXIT_FAILURE)</text>
+<text x="70" y="780" class="m s11">   （定義 IMPROC_NO_STDIO 時改成 abort()）</text>
+
+<rect x="56" y="816" width="396" height="116" rx="6" class="kern"/>
+<text x="70" y="836">需要暫存的 op（filter、morph、resize、hist）</text>
+<text x="70" y="856" class="m s11">improc_scratch_mul / _add：算大小；溢位 → ASSERT</text>
+<text x="70" y="873" class="m s11">fast_malloc（經 allocator hook）× 每一塊</text>
+<text x="70" y="890" class="m s11">improc_scratch_check(blocks, n)</text>
+<text x="70" y="907" class="s11">任一塊為 NULL：先 fast_free 其餘區塊，再 ASSERT</text>
+<text x="70" y="923" class="s11 sec">（utils.h、improc_internal.h；細節見圖 4）</text>
+<path d="M254,816 L254,792" class="er" marker-end="url(#arr-red)"/>
 
 <!-- edges -->
 <path d="M194,194 L194,216" class="e" marker-end="url(#arr)"/>
@@ -73,15 +84,16 @@ text{fill:#1F2328}
 <text x="202" y="432" class="s12">否</text>
 <path d="M194,516 L194,550" class="e" marker-end="url(#arr)"/>
 <text x="202" y="538" class="s12">每列呼叫一次</text>
-<path d="M56,274 L42,274 L42,725 L54,725" class="er" marker-end="url(#arr-red)"/>
+<path d="M56,274 L42,274 L42,738 L54,738" class="er" marker-end="url(#arr-red)"/>
 <text x="52" y="676" class="s12 red">任一條件不成立</text>
 
-<text x="48" y="796" class="s12 sec">錯誤處理分兩類（CLAUDE.md）：</text>
-<text x="48" y="812" class="s12 sec">程式誤用 → ASSERT 中止；</text>
-<text x="48" y="828" class="s12 sec">外部輸入錯誤 → 回傳 NULL 或 -1</text>
-<text x="48" y="850" class="s12 sec">dst 一律由呼叫端配置；運算不支援 in-place</text>
-<text x="48" y="872" class="s12 sec">例外：resize 不要求同尺寸（目標尺寸就是 dst 的尺寸），</text>
-<text x="48" y="888" class="s12 sec">先檢查 dst 是否為空，再 ASSERT src 非空（geometry.c:100-103）</text>
+<text x="48" y="962" class="s12 sec">錯誤處理分兩類（CLAUDE.md）：</text>
+<text x="48" y="978" class="s12 sec">程式誤用 → ASSERT（預設中止；可裝 handler 改成恢復）；</text>
+<text x="48" y="994" class="s12 sec">外部輸入錯誤 → 回傳 NULL 或 -1</text>
+<text x="48" y="1016" class="s12 sec">alloc_mat 配置失敗也是 ASSERT；mat_create 與圖檔 IO 回傳 NULL</text>
+<text x="48" y="1038" class="s12 sec">dst 一律由呼叫端配置；運算不支援 in-place</text>
+<text x="48" y="1060" class="s12 sec">例外：resize 不要求同尺寸（目標尺寸就是 dst 的尺寸），</text>
+<text x="48" y="1076" class="s12 sec">先檢查 dst 是否為空，再 ASSERT src 非空（geometry.c:185-188）</text>
 
 <!-- ===== Right top: kernel selection ===== -->
 <rect x="500" y="90" width="748" height="390" rx="8" class="panel"/>
@@ -98,7 +110,7 @@ text{fill:#1F2328}
 
 <text x="520" y="174" class="m s12">cvt_color</text>
 <text x="660" y="174" class="s12">掃描 <tspan class="m">conversions[]</tspan> 找 <tspan class="m">code</tspan></text>
-<text x="940" y="174" class="s12">12 個 <tspan class="m">*_row</tspan></text>
+<text x="940" y="174" class="s12">20 個 <tspan class="m">*_row</tspan></text>
 <text x="1130" y="167" class="m s12">src-&gt;cols</text>
 <text x="1130" y="183" class="s12">（像素數）</text>
 
@@ -129,26 +141,24 @@ text{fill:#1F2328}
 <text x="1130" y="374" class="m s12">width, cn</text>
 
 <text x="516" y="414" class="m s12">convert_scale：v = i × alpha_q8 + beta × 256 + 128；lut[i] = clamp(v &gt;&gt; 8, 0, 255)</text>
-<text x="516" y="430" class="m s11 sec">pixel.c:120-124</text>
+<text x="516" y="430" class="m s11 sec">pixel.c:121-124</text>
 <text x="516" y="452" class="m s12">convert_scale_abs：v = s × alpha_q8 + beta × 256；d = min((|v| + 128) &gt;&gt; 8, 255)</text>
 <text x="516" y="468" class="m s11 sec">pixel.c:131-139</text>
 
 <!-- ===== Right bottom: cvt_color dispatch ===== -->
-<rect x="500" y="492" width="748" height="456" rx="8" class="panel"/>
-<text x="516" y="514" class="h">cvt_color 的表驅動 dispatch（color.c:106-149）</text>
+<rect x="500" y="492" width="748" height="638" rx="8" class="panel"/>
+<text x="516" y="514" class="h">cvt_color 的表驅動 dispatch（color.c:348-399）</text>
 <text x="516" y="536" class="m s12">struct ColorConversion { int code; int scn; int dcn; color_row_fn kernel; };</text>
-
-<rect x="826" y="568" width="190" height="264" class="kfill"/>
+<rect x="826" y="568" width="190" height="440" class="kfill"/>
 <rect x="516" y="546" width="716" height="22" class="hdr"/>
-<path d="M516,590 H1232 M516,612 H1232 M516,634 H1232 M516,656 H1232 M516,678 H1232 M516,700 H1232 M516,722 H1232 M516,744 H1232 M516,766 H1232 M516,788 H1232 M516,810 H1232" class="grid"/>
-<path d="M706,546 V832 M766,546 V832 M826,546 V832 M1016,546 V832" class="grid"/>
-<rect x="516" y="546" width="716" height="286" class="grid"/>
+<path d="M516,568 H1232 M516,590 H1232 M516,612 H1232 M516,634 H1232 M516,656 H1232 M516,678 H1232 M516,700 H1232 M516,722 H1232 M516,744 H1232 M516,766 H1232 M516,788 H1232 M516,810 H1232 M516,832 H1232 M516,854 H1232 M516,876 H1232 M516,898 H1232 M516,920 H1232 M516,942 H1232 M516,964 H1232 M516,986 H1232" class="grid"/>
+<path d="M706,546 V1008 M766,546 V1008 M826,546 V1008 M1016,546 V1008" class="grid"/>
+<rect x="516" y="546" width="716" height="462" class="grid"/>
 <text x="524" y="561" class="s12 b">code</text>
 <text x="714" y="561" class="s12 b">scn</text>
 <text x="774" y="561" class="s12 b">dcn</text>
 <text x="834" y="561" class="s12 b">kernel</text>
 <text x="1024" y="561" class="s12 b">同值的別名</text>
-
 <g class="m s12">
 <text x="524" y="583">COLOR_RGB2GRAY</text><text x="714" y="583">3</text><text x="774" y="583">1</text><text x="834" y="583">rgb2gray_row</text><text x="1024" y="583" class="sec">—</text>
 <text x="524" y="605">COLOR_BGR2GRAY</text><text x="714" y="605">3</text><text x="774" y="605">1</text><text x="834" y="605">bgr2gray_row</text><text x="1024" y="605" class="sec">—</text>
@@ -162,11 +172,19 @@ text{fill:#1F2328}
 <text x="524" y="781">COLOR_RGBA2RGB</text><text x="714" y="781">4</text><text x="774" y="781">3</text><text x="834" y="781">rgba2rgb_row</text><text x="1024" y="781">COLOR_BGRA2BGR</text>
 <text x="524" y="803">COLOR_RGB2BGRA</text><text x="714" y="803">3</text><text x="774" y="803">4</text><text x="834" y="803">rgb2bgra_row</text><text x="1024" y="803">COLOR_BGR2RGBA</text>
 <text x="524" y="825">COLOR_RGBA2BGR</text><text x="714" y="825">4</text><text x="774" y="825">3</text><text x="834" y="825">rgba2bgr_row</text><text x="1024" y="825">COLOR_BGRA2RGB</text>
+<text x="524" y="847">COLOR_RGB2HSV</text><text x="714" y="847">3</text><text x="774" y="847">3</text><text x="834" y="847">rgb2hsv_row</text><text x="1024" y="847" class="sec">—</text>
+<text x="524" y="869">COLOR_BGR2HSV</text><text x="714" y="869">3</text><text x="774" y="869">3</text><text x="834" y="869">bgr2hsv_row</text><text x="1024" y="869" class="sec">—</text>
+<text x="524" y="891">COLOR_HSV2RGB</text><text x="714" y="891">3</text><text x="774" y="891">3</text><text x="834" y="891">hsv2rgb_row</text><text x="1024" y="891" class="sec">—</text>
+<text x="524" y="913">COLOR_HSV2BGR</text><text x="714" y="913">3</text><text x="774" y="913">3</text><text x="834" y="913">hsv2bgr_row</text><text x="1024" y="913" class="sec">—</text>
+<text x="524" y="935">COLOR_RGB2YUV</text><text x="714" y="935">3</text><text x="774" y="935">3</text><text x="834" y="935">rgb2yuv_row</text><text x="1024" y="935" class="sec">—</text>
+<text x="524" y="957">COLOR_BGR2YUV</text><text x="714" y="957">3</text><text x="774" y="957">3</text><text x="834" y="957">bgr2yuv_row</text><text x="1024" y="957" class="sec">—</text>
+<text x="524" y="979">COLOR_YUV2RGB</text><text x="714" y="979">3</text><text x="774" y="979">3</text><text x="834" y="979">yuv2rgb_row</text><text x="1024" y="979" class="sec">—</text>
+<text x="524" y="1001">COLOR_YUV2BGR</text><text x="714" y="1001">3</text><text x="774" y="1001">3</text><text x="834" y="1001">yuv2bgr_row</text><text x="1024" y="1001" class="sec">—</text>
 </g>
-
-<text x="516" y="850" class="s12 sec">20 個 enum 名稱對應 12 列（color.h:7-28）</text>
-<text x="516" y="868" class="m s12">1. 掃表找 code；ASSERT(conv != NULL)</text>
-<text x="516" y="884" class="m s12">2. ASSERT src type == CV_MAKETYPE(CV_8U, scn)，dst type == CV_MAKETYPE(CV_8U, dcn)</text>
-<text x="516" y="900" class="m s12">3. conv-&gt;kernel(mat_row(src, y), mat_row(dst, y), src-&gt;cols)</text>
-<text x="516" y="924" class="m s12">灰階：Y = (77×R + 150×G + 29×B + 128) &gt;&gt; 8（color.c:3-5）</text>
+<text x="516" y="1028" class="s12 sec">28 個 enum 名稱對應 20 列（color.h:8-37）；前 12 列是 GRAY / RGB / BGR / RGBA 互轉，後 8 列是 HSV 與 YUV</text>
+<text x="516" y="1046" class="m s12">1. 掃表找 code；ASSERT(conv != NULL)；ASSERT(dst != src)</text>
+<text x="516" y="1062" class="m s12">2. ASSERT src type == CV_MAKETYPE(CV_8U, scn)，dst type == CV_MAKETYPE(CV_8U, dcn)</text>
+<text x="516" y="1078" class="m s12">3. ASSERT 同尺寸；conv-&gt;kernel(mat_row(src, y), mat_row(dst, y), src-&gt;cols)</text>
+<text x="516" y="1102" class="s12">灰階：Y = (77×R + 150×G + 29×B + 128) &gt;&gt; 8（color.c:7-9）</text>
+<text x="516" y="1120" class="s12">HSV：H 0..179，S、V 0..255；YUV：JFIF 全範圍 BT.601，U = Cb、V = Cr（color.h 註解）</text>
 </svg>

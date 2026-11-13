@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 900" width="1280" height="900" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1000" width="1280" height="1000" role="img" aria-labelledby="t d">
 <title id="t">opencv_c 架構：建置目標、模組分層與 #include 關係</title>
-<desc id="d">左側是建置目標與 improc 靜態函式庫內的模組分層；右側是各 .c 與測試檔 #include 各 header 的矩陣。</desc>
+<desc id="d">左側是建置目標與 improc、improc_core 兩個靜態函式庫內的模組分層；右側列出各檔案 #include 的 header。</desc>
 <defs>
 <style>
 text{fill:#1F2328;font-family:"Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", "Helvetica Neue", Arial, sans-serif}
@@ -23,7 +23,177 @@ text{fill:#1F2328;font-family:"Segoe UI", "Microsoft JhengHei", "PingFang TC", "
 <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57606A"/></marker>
 <marker id="arr-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#CF222E"/></marker>
 </defs>
-<rect x="0" y="0" width="1280" height="900" rx="8" fill="#FFFFFF" stroke="#D0D7DE"/>
+<rect x="0" y="0" width="1280" height="1000" rx="8" fill="#FFFFFF" stroke="#D0D7DE"/>
 <text x="32" y="44" font-size="22" font-weight="700">opencv_c 架構：建置目標、模組分層與 #include 關係</text>
 <text x="32" y="66" font-size="13" class="s">C 沒有繼承；這裡畫的是連結相依與標頭引用（CMakeLists.txt、core/*.h）</text>
-<rect class="panel" x="32" y="90" width="600" height="778" rx="8"/><text x="48" y="114" font-size="15" font-weight="700">建置目標與模組分層</text><text x="48" y="134" font-size="12" class="s">CTest：6 個 <tspan class="m">test_*</tspan> 加上 <tspan class="m">demo_smoke</tspan>（直接執行 demo）；<tspan class="m">SKIP_RETURN_CODE 77</tspan></text><rect class="exe" x="48" y="146" width="90" height="64" rx="6"/><text x="93" y="174.6" font-size="13" class="m" font-weight="700" text-anchor="middle">demo</text><text x="93" y="191.2" font-size="12" class="m" text-anchor="middle">main.c</text><rect class="exe" x="148" y="146" width="175" height="64" rx="6"/><text x="235.5" y="175.1" font-size="13" class="m" font-weight="700" text-anchor="middle">bench_gray</text><text x="235.5" y="190.8" font-size="11" class="m" text-anchor="middle">benchmarks/bench_gray.c</text><rect class="exe" x="333" y="146" width="283" height="64" rx="6"/><text x="474.5" y="174.3" font-size="11" class="m" text-anchor="middle">test_mat · test_color · test_pixel</text><text x="474.5" y="189.3" font-size="11" class="m" text-anchor="middle">test_filter · test_geometry · test_io</text><path class="ln" d="M93,210 L93,226"/><path class="ln" d="M235.5,210 L235.5,226"/><path class="ln" d="M474.5,210 L474.5,226"/><path class="ln" d="M93,226 L474.5,226"/><path class="ln" d="M284,226 L284,248" marker-end="url(#arr)"/><text x="292" y="242" font-size="12" class="m s">target_link_libraries(... PRIVATE improc)</text><rect class="panel" x="48" y="250" width="568" height="490" rx="8" stroke-dasharray="5 4"/><text x="64" y="274" font-size="15" font-weight="700">improc（STATIC library）</text><text x="600" y="274" font-size="12" class="m s" text-anchor="end">target_include_directories(improc PUBLIC core)</text><rect class="api" x="64" y="300" width="536" height="40" rx="6"/><text x="332" y="324.2" font-size="12" text-anchor="middle"><tspan class="m">improc.h</tspan>：umbrella header，include 其餘六個 header</text><rect class="api" x="64" y="364" width="125" height="96" rx="6"/><text x="126.5" y="408.7" font-size="12" class="m" font-weight="700" text-anchor="middle">color.h/.c</text><text x="126.5" y="423.9" font-size="11" class="m" text-anchor="middle">cvt_color</text><rect class="api" x="201" y="364" width="125" height="96" rx="6"/><text x="263.5" y="386.2" font-size="12" class="m" font-weight="700" text-anchor="middle">pixel.h/.c</text><text x="263.5" y="401.4" font-size="11" class="m" text-anchor="middle">threshold</text><text x="263.5" y="416.4" font-size="11" class="m" text-anchor="middle">mat_lut</text><text x="263.5" y="431.4" font-size="11" class="m" text-anchor="middle">convert_scale</text><text x="263.5" y="446.4" font-size="11" class="m" text-anchor="middle">convert_scale_abs</text><rect class="api" x="338" y="364" width="125" height="96" rx="6"/><text x="400.5" y="393.7" font-size="12" class="m" font-weight="700" text-anchor="middle">filter.h/.c</text><text x="400.5" y="408.9" font-size="11" class="m" text-anchor="middle">box_filter</text><text x="400.5" y="423.9" font-size="11" class="m" text-anchor="middle">gaussian_blur</text><text x="400.5" y="438.9" font-size="11" class="m" text-anchor="middle">sobel</text><rect class="api" x="475" y="364" width="125" height="96" rx="6"/><text x="537.5" y="401.2" font-size="12" class="m" font-weight="700" text-anchor="middle">geometry.h/.c</text><text x="537.5" y="416.4" font-size="11" class="m" text-anchor="middle">flip</text><text x="537.5" y="431.4" font-size="11" class="m" text-anchor="middle">resize</text><path class="ln" d="M126.5,460 L126.5,480"/><path class="ln" d="M263.5,460 L263.5,480"/><path class="ln" d="M400.5,460 L400.5,480"/><path class="ln" d="M537.5,460 L537.5,480"/><path class="ln" d="M126.5,480 L537.5,480"/><path class="ln" d="M254,480 L254,508" marker-end="url(#arr)"/><text x="262" y="500" font-size="12" class="s"><tspan class="m">struct Mat</tspan>、<tspan class="m">mat_row</tspan>、<tspan class="m">mat_type</tspan></text><rect class="data" x="64" y="510" width="340" height="100" rx="6"/><text x="234" y="532.2" font-size="12" class="m" font-weight="700" text-anchor="middle">mat.h / mat.c</text><text x="234" y="548.2" font-size="12" text-anchor="middle"><tspan class="m">struct Mat</tspan>、<tspan class="m">CV_*</tspan> type macros</text><text x="234" y="564.2" font-size="12" class="m" text-anchor="middle">alloc_mat / alloc_mat_synthetic / free_mat</text><text x="234" y="580.2" font-size="12" class="m" text-anchor="middle">alloc_mat_from_file / alloc_mat_from_buffer</text><text x="234" y="596.2" font-size="12" class="m" text-anchor="middle">mat_row / mat_at / mat_info / mat_write</text><rect class="ext" x="470" y="510" width="130" height="100" rx="6"/><text x="535" y="540.4" font-size="11" class="m" text-anchor="middle">stb_image.h</text><text x="535" y="555.4" font-size="11" class="m" text-anchor="middle">stb_image_write.h</text><text x="535" y="571.2" font-size="12" text-anchor="middle">第三方，維持原樣</text><text x="535" y="587.2" font-size="12" text-anchor="middle">只有 mat.c include</text><path class="ln" d="M406,560 L468,560" marker-end="url(#arr)"/><text x="437" y="552" font-size="11" class="m s" text-anchor="middle">#include</text><text x="600" y="630" font-size="11" class="s" text-anchor="end"><tspan class="m">STB_IMAGE_IMPLEMENTATION</tspan> 定義於 mat.c</text><path class="ln" d="M234,610 L234,660" marker-end="url(#arr)"/><text x="226" y="640" font-size="12" class="m s" text-anchor="end">ASSERT、fast_malloc</text><rect class="kern" x="64" y="660" width="536" height="72" rx="6"/><text x="332" y="677.2" font-size="12" class="m" font-weight="700" text-anchor="middle">utils.h / utils.c</text><text x="332" y="693.2" font-size="12" text-anchor="middle"><tspan class="m">ASSERT</tspan>、<tspan class="m">fast_malloc</tspan> / <tspan class="m">fast_free</tspan>（16-byte 對齊）</text><text x="332" y="708.4" font-size="11" text-anchor="middle">color.c、pixel.c、filter.c、geometry.c、mat.c 都用 <tspan class="m">ASSERT</tspan>；</text><text x="332" y="723.4" font-size="11" text-anchor="middle">filter.c、geometry.c、mat.c 另用 <tspan class="m">fast_malloc</tspan></text><path class="ln" d="M332,740 L332,768" marker-end="url(#arr)"/><rect class="ext" x="48" y="770" width="568" height="60" rx="6"/><text x="332" y="796.5" font-size="13" class="m" text-anchor="middle">libc · libm（僅 UNIX）· Threads::Threads</text><text x="332" y="813.2" font-size="12" text-anchor="middle">PUBLIC 連結；目前 core 內沒有任何檔案 include pthread</text><rect class="panel" x="664" y="90" width="584" height="778" rx="8"/><text x="680" y="114" font-size="15" font-weight="700"><tspan class="m">#include</tspan> 矩陣（列 include 欄）</text><circle cx="684" cy="130" r="5" fill="#0969DA"/><text x="696" y="134" font-size="12">直接 include</text><circle cx="790" cy="130" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><text x="802" y="134" font-size="12">經由其他 header 間接取得</text><text class="m" x="828" y="218" font-size="12" transform="rotate(-60 828 218)">improc.h</text><text class="m" x="868" y="218" font-size="12" transform="rotate(-60 868 218)">color.h</text><text class="m" x="908" y="218" font-size="12" transform="rotate(-60 908 218)">pixel.h</text><text class="m" x="948" y="218" font-size="12" transform="rotate(-60 948 218)">filter.h</text><text class="m" x="988" y="218" font-size="12" transform="rotate(-60 988 218)">geometry.h</text><text class="m" x="1028" y="218" font-size="12" transform="rotate(-60 1028 218)">mat.h</text><text class="m" x="1068" y="218" font-size="12" transform="rotate(-60 1068 218)">utils.h</text><text class="m" x="1108" y="218" font-size="12" transform="rotate(-60 1108 218)">stb_image*.h</text><text class="m" x="1148" y="218" font-size="12" transform="rotate(-60 1148 218)">test_util.h</text><text class="m" x="1188" y="218" font-size="12" transform="rotate(-60 1188 218)">test_mat_util.h</text><rect x="696" y="230" width="512" height="28" fill="#F6F8FA"/><text x="804" y="248" font-size="12" class="m" text-anchor="end">color.c</text><circle cx="868" cy="244" r="5" fill="#0969DA"/><circle cx="1028" cy="244" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1068" cy="244" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><text x="804" y="276" font-size="12" class="m" text-anchor="end">pixel.c</text><circle cx="908" cy="272" r="5" fill="#0969DA"/><circle cx="1028" cy="272" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1068" cy="272" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><rect x="696" y="286" width="512" height="28" fill="#F6F8FA"/><text x="804" y="304" font-size="12" class="m" text-anchor="end">filter.c</text><circle cx="948" cy="300" r="5" fill="#0969DA"/><circle cx="1028" cy="300" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1068" cy="300" r="5" fill="#0969DA"/><text x="804" y="332" font-size="12" class="m" text-anchor="end">geometry.c</text><circle cx="988" cy="328" r="5" fill="#0969DA"/><circle cx="1028" cy="328" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1068" cy="328" r="5" fill="#0969DA"/><rect x="696" y="342" width="512" height="28" fill="#F6F8FA"/><text x="804" y="360" font-size="12" class="m" text-anchor="end">mat.c</text><circle cx="1028" cy="356" r="5" fill="#0969DA"/><circle cx="1068" cy="356" r="5" fill="#0969DA"/><circle cx="1108" cy="356" r="5" fill="#0969DA"/><text x="804" y="388" font-size="12" class="m" text-anchor="end">utils.c</text><circle cx="1068" cy="384" r="5" fill="#0969DA"/><rect x="696" y="398" width="512" height="28" fill="#F6F8FA"/><text x="804" y="416" font-size="12" class="m" text-anchor="end">main.c</text><circle cx="828" cy="412" r="5" fill="#0969DA"/><circle cx="868" cy="412" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="908" cy="412" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="948" cy="412" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="988" cy="412" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1028" cy="412" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1068" cy="412" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><text x="804" y="444" font-size="12" class="m" text-anchor="end">bench_gray.c</text><circle cx="828" cy="440" r="5" fill="#0969DA"/><circle cx="868" cy="440" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="908" cy="440" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="948" cy="440" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="988" cy="440" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1028" cy="440" r="5" fill="#0969DA"/><circle cx="1068" cy="440" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><rect x="696" y="454" width="512" height="28" fill="#F6F8FA"/><text x="804" y="472" font-size="12" class="m" text-anchor="end">test_mat.c</text><circle cx="1028" cy="468" r="5" fill="#0969DA"/><circle cx="1068" cy="468" r="5" fill="#0969DA"/><circle cx="1148" cy="468" r="5" fill="#0969DA"/><text x="804" y="500" font-size="12" class="m" text-anchor="end">test_color.c</text><circle cx="868" cy="496" r="5" fill="#0969DA"/><circle cx="1028" cy="496" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1068" cy="496" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1148" cy="496" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1188" cy="496" r="5" fill="#0969DA"/><rect x="696" y="510" width="512" height="28" fill="#F6F8FA"/><text x="804" y="528" font-size="12" class="m" text-anchor="end">test_pixel.c</text><circle cx="908" cy="524" r="5" fill="#0969DA"/><circle cx="1028" cy="524" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1068" cy="524" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1148" cy="524" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1188" cy="524" r="5" fill="#0969DA"/><text x="804" y="556" font-size="12" class="m" text-anchor="end">test_filter.c</text><circle cx="948" cy="552" r="5" fill="#0969DA"/><circle cx="1028" cy="552" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1148" cy="552" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1188" cy="552" r="5" fill="#0969DA"/><rect x="696" y="566" width="512" height="28" fill="#F6F8FA"/><text x="804" y="584" font-size="12" class="m" text-anchor="end">test_geometry.c</text><circle cx="988" cy="580" r="5" fill="#0969DA"/><circle cx="1028" cy="580" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1148" cy="580" r="5" fill="none" stroke="#57606A" stroke-width="1.5"/><circle cx="1188" cy="580" r="5" fill="#0969DA"/><text x="804" y="612" font-size="12" class="m" text-anchor="end">test_io.c</text><circle cx="1028" cy="608" r="5" fill="#0969DA"/><circle cx="1148" cy="608" r="5" fill="#0969DA"/><circle cx="1188" cy="608" r="5" fill="#0969DA"/><path class="grid" d="M808,230 V622"/><path class="grid" d="M848,230 V622"/><path class="grid" d="M888,230 V622"/><path class="grid" d="M928,230 V622"/><path class="grid" d="M968,230 V622"/><path class="grid" d="M1008,230 V622"/><path class="grid" d="M1048,230 V622"/><path class="grid" d="M1088,230 V622"/><path class="grid" d="M1128,230 V622"/><path class="grid" d="M1168,230 V622"/><path class="grid" d="M1208,230 V622"/><path class="grid" d="M696,230 H1208"/><path class="grid" d="M696,258 H1208"/><path class="grid" d="M696,286 H1208"/><path class="grid" d="M696,314 H1208"/><path class="grid" d="M696,342 H1208"/><path class="grid" d="M696,370 H1208"/><path fill="none" stroke="#6E7781" stroke-width="2" d="M696,398 H1208"/><path class="grid" d="M696,426 H1208"/><path fill="none" stroke="#6E7781" stroke-width="2" d="M696,454 H1208"/><path class="grid" d="M696,482 H1208"/><path class="grid" d="M696,510 H1208"/><path class="grid" d="M696,538 H1208"/><path class="grid" d="M696,566 H1208"/><path class="grid" d="M696,594 H1208"/><path class="grid" d="M696,622 H1208"/><text x="684" y="314" font-size="12" class="s" text-anchor="middle" transform="rotate(-90 684 314)">core</text><text x="684" y="426" font-size="12" class="s" text-anchor="middle" transform="rotate(-90 684 426)">程式</text><text x="684" y="538" font-size="12" class="s" text-anchor="middle" transform="rotate(-90 684 538)">tests</text><text x="680" y="664" font-size="15" font-weight="700">各 header 的 include 關係</text><text x="680" y="692" font-size="12" class="m">improc.h → color.h, filter.h, geometry.h, mat.h, pixel.h, utils.h</text><text x="680" y="714" font-size="12" class="m">color.h, pixel.h → mat.h, utils.h</text><text x="680" y="736" font-size="12" class="m">filter.h, geometry.h → mat.h</text><text x="680" y="758" font-size="12" class="m">tests/test_mat_util.h → mat.h, test_util.h</text><text x="680" y="780" font-size="12" class="m">mat.h, utils.h, tests/test_util.h → 只 include 標準函式庫</text><text x="680" y="812" font-size="12" class="s">main.c 與 bench_gray.c 只 include improc.h，其餘 header 透過它取得。</text><text x="680" y="832" font-size="12" class="s">test_*.c 位於 tests/，main.c 在專案根目錄，bench_gray.c 在 benchmarks/。</text></svg>
+<rect class="panel" x="32" y="90" width="600" height="880" rx="8"/>
+<text x="48" y="114" font-size="15" font-weight="700">建置目標與模組分層</text>
+<text x="48" y="134" font-size="12" class="s">CTest：11 個 <tspan class="m">test_*</tspan>、6 個 <tspan class="m">test_kodak_*</tspan> 加上 <tspan class="m">demo_smoke</tspan>（直接執行 demo）；<tspan class="m">SKIP_RETURN_CODE 77</tspan></text>
+<rect class="exe" x="48" y="146" width="72" height="64" rx="6"/>
+<text x="84" y="182" font-size="13" class="m" font-weight="700" text-anchor="middle">demo</text>
+<text x="84" y="195" font-size="11" class="m" text-anchor="middle">main.c</text>
+<rect class="exe" x="128" y="146" width="150" height="64" rx="6"/>
+<text x="203" y="174.5" font-size="13" class="m" font-weight="700" text-anchor="middle">bench_gray</text>
+<text x="203" y="189.5" font-size="11" text-anchor="middle">benchmarks/bench_gray.c</text>
+<rect class="exe" x="288" y="146" width="328" height="64" rx="6"/>
+<text x="452" y="168" font-size="11" class="m" text-anchor="middle">test_mat · test_color · test_pixel · test_filter</text>
+<text x="452" y="183" font-size="11" class="m" text-anchor="middle">test_geometry · test_io · test_hooks · test_morph</text>
+<text x="452" y="198" font-size="11" class="m" text-anchor="middle">test_hist · test_f32 · test_scratch · test_kodak_*</text>
+<path class="ln" d="M84,210 L84,226"/><path class="ln" d="M203,210 L203,226"/><path class="ln" d="M452,210 L452,226"/><path class="ln" d="M84,226 L452,226"/>
+<path class="ln" d="M284,226 L284,248" marker-end="url(#arr)"/>
+<text x="292" y="242" font-size="12" class="m s">target_link_libraries(... PRIVATE improc)</text>
+<rect class="panel" x="48" y="250" width="568" height="124" rx="8" stroke-dasharray="5 4"/>
+<text x="64" y="274" font-size="15" font-weight="700">improc（STATIC library，hosted）</text>
+<text x="600" y="274" font-size="12" class="m s" text-anchor="end">PUBLIC：improc_core、Threads::Threads</text>
+<rect class="api" x="64" y="288" width="330" height="72" rx="6"/>
+<text x="229" y="313" font-size="12" class="m" font-weight="700" text-anchor="middle">mat_io.h / mat_io.c</text>
+<text x="229" y="328" font-size="11" text-anchor="middle">alloc_mat_from_file / alloc_mat_from_buffer</text>
+<text x="229" y="343" font-size="11" text-anchor="middle">mat_write / mat_info（圖檔讀寫）</text>
+<rect class="ext" x="410" y="288" width="190" height="72" rx="6"/>
+<text x="505" y="313" font-size="12" class="m" font-weight="700" text-anchor="middle">stb_image*.h</text>
+<text x="505" y="328" font-size="11" text-anchor="middle">第三方，維持原樣</text>
+<text x="505" y="343" font-size="11" text-anchor="middle">只有 mat_io.c include</text>
+<path class="ln" d="M394,324 L408,324" marker-end="url(#arr)"/>
+<path class="ln" d="M332,374 L332,398" marker-end="url(#arr)"/>
+<text x="340" y="392" font-size="12" class="m s">link PUBLIC improc_core</text>
+<rect class="panel" x="48" y="400" width="568" height="470" rx="8" stroke-dasharray="5 4"/>
+<text x="64" y="420" font-size="15" font-weight="700">improc_core（STATIC library）</text>
+<text x="600" y="420" font-size="12" class="m s" text-anchor="end">target_include_directories(... PUBLIC core)</text>
+<rect class="api" x="64" y="432" width="536" height="34" rx="6"/>
+<text x="332" y="445.5" font-size="12" class="m" font-weight="700" text-anchor="middle">improc.h</text>
+<text x="332" y="460.5" font-size="11" text-anchor="middle">umbrella header，include 其餘模組 header</text>
+<rect class="api" x="64" y="478" width="125" height="80" rx="6"/>
+<text x="126.5" y="498" font-size="11" class="m" font-weight="700" text-anchor="middle">color.h/.c</text>
+<text x="126.5" y="516" font-size="10" class="m" text-anchor="middle">cvt_color</text>
+<text x="126.5" y="530" font-size="10" class="m" text-anchor="middle">GRAY/RGB/BGR/RGBA</text>
+<text x="126.5" y="544" font-size="10" class="m" text-anchor="middle">HSV、YUV</text>
+<rect class="api" x="201" y="478" width="125" height="80" rx="6"/>
+<text x="263.5" y="498" font-size="11" class="m" font-weight="700" text-anchor="middle">pixel.h/.c</text>
+<text x="263.5" y="516" font-size="10" class="m" text-anchor="middle">threshold</text>
+<text x="263.5" y="530" font-size="10" class="m" text-anchor="middle">mat_lut</text>
+<text x="263.5" y="544" font-size="10" class="m" text-anchor="middle">convert_scale(_abs)</text>
+<rect class="api" x="338" y="478" width="125" height="80" rx="6"/>
+<text x="400.5" y="498" font-size="11" class="m" font-weight="700" text-anchor="middle">filter.h/.c</text>
+<text x="400.5" y="516" font-size="10" class="m" text-anchor="middle">box_filter</text>
+<text x="400.5" y="530" font-size="10" class="m" text-anchor="middle">gaussian_blur</text>
+<text x="400.5" y="544" font-size="10" class="m" text-anchor="middle">sobel（環形緩衝區）</text>
+<rect class="api" x="475" y="478" width="125" height="80" rx="6"/>
+<text x="537.5" y="498" font-size="11" class="m" font-weight="700" text-anchor="middle">morph.h/.c</text>
+<text x="537.5" y="516" font-size="10" class="m" text-anchor="middle">erode / dilate</text>
+<text x="537.5" y="530" font-size="10" class="m" text-anchor="middle">morph_open</text>
+<text x="537.5" y="544" font-size="10" class="m" text-anchor="middle">morph_close</text>
+<rect class="api" x="64" y="566" width="125" height="80" rx="6"/>
+<text x="126.5" y="586" font-size="11" class="m" font-weight="700" text-anchor="middle">hist.h/.c</text>
+<text x="126.5" y="604" font-size="10" class="m" text-anchor="middle">calc_hist</text>
+<text x="126.5" y="618" font-size="10" class="m" text-anchor="middle">equalize_hist</text>
+<text x="126.5" y="632" font-size="10" class="m" text-anchor="middle">otsu_threshold(_hist)</text>
+<rect class="api" x="201" y="566" width="125" height="80" rx="6"/>
+<text x="263.5" y="586" font-size="11" class="m" font-weight="700" text-anchor="middle">geometry.h/.c</text>
+<text x="263.5" y="604" font-size="10" class="m" text-anchor="middle">flip</text>
+<text x="263.5" y="618" font-size="10" class="m" text-anchor="middle">resize</text>
+<text x="263.5" y="632" font-size="10" class="m" text-anchor="middle">NEAREST/LINEAR/AREA</text>
+<rect class="api" x="338" y="566" width="125" height="80" rx="6"/>
+<text x="400.5" y="586" font-size="11" class="m" font-weight="700" text-anchor="middle">convert_f32.h/.c</text>
+<text x="400.5" y="604" font-size="10" class="m" text-anchor="middle">convert_to</text>
+<text x="400.5" y="618" font-size="10" class="m" text-anchor="middle">8U 與 32F 互轉</text>
+<text x="400.5" y="632" font-size="10" class="m" text-anchor="middle">需要 IMPROC_HAS_FLOAT</text>
+<rect class="panel" x="475" y="566" width="125" height="80" rx="6" stroke-dasharray="3 3"/>
+<text x="537.5" y="602" font-size="11" class="s" text-anchor="middle">每個模組都</text>
+<text x="537.5" y="618" font-size="11" class="s" text-anchor="middle">include mat.h</text>
+<path class="ln" d="M254,646 L254,668" marker-end="url(#arr)"/>
+<text x="262" y="662" font-size="12" class="s"><tspan class="m">struct Mat</tspan>、<tspan class="m">mat_row</tspan>、<tspan class="m">mat_type</tspan></text>
+<rect class="data" x="64" y="670" width="340" height="74" rx="6"/>
+<text x="234" y="688.5" font-size="12" class="m" font-weight="700" text-anchor="middle">mat.h / mat.c</text>
+<text x="234" y="703.5" font-size="11" text-anchor="middle">struct Mat、CV_* type macros</text>
+<text x="234" y="718.5" font-size="11" text-anchor="middle">mat_init / alloc_mat / free_mat</text>
+<text x="234" y="733.5" font-size="11" text-anchor="middle">mat_row / mat_at / alloc_mat_synthetic</text>
+<rect class="kern" x="420" y="670" width="180" height="74" rx="6"/>
+<text x="510" y="688.5" font-size="12" class="m" font-weight="700" text-anchor="middle">improc_internal.h</text>
+<text x="510" y="703.5" font-size="11" text-anchor="middle">檢查過的大小運算</text>
+<text x="510" y="718.5" font-size="11" text-anchor="middle">improc_scratch_*</text>
+<text x="510" y="733.5" font-size="11" text-anchor="middle">128 位元輔助函式</text>
+<path class="ln" d="M234,744 L234,768" marker-end="url(#arr)"/>
+<text x="242" y="762" font-size="12" class="m s">ASSERT、fast_malloc</text>
+<rect class="kern" x="64" y="770" width="536" height="84" rx="6"/>
+<text x="332" y="793.5" font-size="12" class="m" font-weight="700" text-anchor="middle">utils.h / utils.c</text>
+<text x="332" y="808.5" font-size="11" text-anchor="middle"><tspan class="m">ASSERT</tspan>、<tspan class="m">fast_malloc</tspan> / <tspan class="m">fast_free</tspan>（16-byte 對齊）</text>
+<text x="332" y="823.5" font-size="11" text-anchor="middle"><tspan class="m">improc_set_assert_handler</tspan>、<tspan class="m">improc_set_allocator</tspan>：可更換的 ASSERT 處理函式與配置器</text>
+<text x="332" y="838.5" font-size="11" text-anchor="middle">所有需要暫存記憶體的運算都向 fast_malloc 要；失敗一律 ASSERT</text>
+<path class="ln" d="M332,870 L332,890" marker-end="url(#arr)"/>
+<rect class="ext" x="48" y="892" width="568" height="62" rx="6"/>
+<text x="332" y="918" font-size="13" class="m" text-anchor="middle">libc · libm（僅 UNIX 且開啟浮點）</text>
+<text x="332" y="938" font-size="12" text-anchor="middle">improc_core 不含 stdio（IMPROC_NO_STDIO）、pthread 與檔案 IO</text>
+<rect class="panel" x="664" y="90" width="584" height="880" rx="8"/>
+<text x="680" y="114" font-size="15" font-weight="700"><tspan class="m">#include</tspan> 關係（左欄檔案 include 右欄）</text>
+<rect class="hdr" x="680" y="130" width="552" height="24"/>
+<text x="690" y="146" font-size="12" font-weight="700">檔案</text><text x="900" y="146" font-size="12" font-weight="700">include</text>
+<text x="690" y="172" font-size="12" class="m">color.h</text>
+<text x="690" y="190" font-size="12" class="m">pixel.h</text>
+<text x="690" y="208" font-size="12" class="m">hist.h</text>
+<text x="690" y="226" font-size="12" class="m">convert_f32.h</text>
+<text x="900" y="172" font-size="12" class="m">mat.h、utils.h</text>
+<path class="grid" d="M680,236 H1232"/>
+<rect x="680" y="236" width="552" height="82" fill="#F6F8FA"/>
+<text x="690" y="254" font-size="12" class="m">filter.h</text>
+<text x="690" y="272" font-size="12" class="m">geometry.h</text>
+<text x="690" y="290" font-size="12" class="m">morph.h</text>
+<text x="690" y="308" font-size="12" class="m">mat_io.h</text>
+<text x="900" y="254" font-size="12" class="m">mat.h</text>
+<path class="grid" d="M680,318 H1232"/>
+<text x="690" y="336" font-size="12" class="m">improc.h</text>
+<text x="900" y="336" font-size="12" class="m">color.h filter.h geometry.h mat.h pixel.h</text>
+<text x="900" y="354" font-size="12" class="m">utils.h morph.h hist.h</text>
+<text x="900" y="372" font-size="12" class="m">convert_f32.h（IMPROC_HAS_FLOAT）</text>
+<text x="900" y="390" font-size="12" class="m">mat_io.h（非 IMPROC_CORE_ONLY）</text>
+<path class="grid" d="M680,400 H1232"/>
+<rect x="680" y="400" width="552" height="64" fill="#F6F8FA"/>
+<text x="690" y="418" font-size="12" class="m">color.c</text>
+<text x="690" y="436" font-size="12" class="m">pixel.c</text>
+<text x="690" y="454" font-size="12" class="m">convert_f32.c</text>
+<text x="900" y="418" font-size="12" class="m">自己的 header（其餘經由它取得）</text>
+<path class="grid" d="M680,464 H1232"/>
+<text x="690" y="482" font-size="12" class="m">filter.c</text>
+<text x="690" y="500" font-size="12" class="m">geometry.c</text>
+<text x="690" y="518" font-size="12" class="m">morph.c</text>
+<text x="900" y="482" font-size="12" class="m">自己的 header、improc_internal.h、utils.h</text>
+<path class="grid" d="M680,528 H1232"/>
+<rect x="680" y="528" width="552" height="28" fill="#F6F8FA"/>
+<text x="690" y="546" font-size="12" class="m">hist.c</text>
+<text x="900" y="546" font-size="12" class="m">hist.h、improc_internal.h、pixel.h</text>
+<path class="grid" d="M680,556 H1232"/>
+<text x="690" y="574" font-size="12" class="m">mat.c</text>
+<text x="900" y="574" font-size="12" class="m">mat.h、improc_internal.h、utils.h</text>
+<path class="grid" d="M680,584 H1232"/>
+<rect x="680" y="584" width="552" height="28" fill="#F6F8FA"/>
+<text x="690" y="602" font-size="12" class="m">utils.c</text>
+<text x="900" y="602" font-size="12" class="m">utils.h、improc_internal.h</text>
+<path class="grid" d="M680,612 H1232"/>
+<text x="690" y="630" font-size="12" class="m">mat_io.c</text>
+<text x="900" y="630" font-size="12" class="m">mat_io.h、utils.h</text>
+<text x="900" y="648" font-size="12" class="m">stb_image.h、stb_image_write.h</text>
+<text x="900" y="666" font-size="12" class="m">（STB_*_IMPLEMENTATION 定義在此）</text>
+<path class="grid" d="M680,676 H1232"/>
+<rect x="680" y="676" width="552" height="46" fill="#F6F8FA"/>
+<text x="690" y="694" font-size="12" class="m">main.c</text>
+<text x="690" y="712" font-size="12" class="m">bench_gray.c</text>
+<text x="900" y="694" font-size="12" class="m">improc.h</text>
+<path class="grid" d="M680,722 H1232"/>
+<text x="690" y="740" font-size="12" class="m">tests/test_*.c</text>
+<text x="900" y="740" font-size="12" class="m">improc.h 或各模組 header</text>
+<text x="900" y="758" font-size="12" class="m">test_util.h、test_mat_util.h、test_alloc_util.h</text>
+<text x="900" y="776" font-size="12" class="m">（test_hist.c、test_scratch.c 另含</text>
+<text x="900" y="794" font-size="12" class="m"> improc_internal.h）</text>
+<path class="grid" d="M680,804 H1232"/>
+<rect x="680" y="804" width="552" height="82" fill="#F6F8FA"/>
+<text x="690" y="822" font-size="12" class="m">mat.h</text>
+<text x="690" y="840" font-size="12" class="m">utils.h</text>
+<text x="690" y="858" font-size="12" class="m">improc_internal.h</text>
+<text x="690" y="876" font-size="12" class="m">test_util.h</text>
+<text x="900" y="822" font-size="12" class="m">只 include 標準函式庫</text>
+<path class="grid" d="M680,886 H1232"/>
+<rect class="grid" x="680" y="130" width="552" height="756"/>
+<path class="grid" d="M890,130 V886"/>
+<text x="680" y="916" font-size="12" class="s">main.c 與 bench_gray.c 只 include improc.h，其餘 header 透過它取得。</text>
+<text x="680" y="936" font-size="12" class="s">test_*.c 位於 tests/，main.c 在專案根目錄，bench_gray.c 在 benchmarks/。</text>
+<text x="680" y="956" font-size="12" class="s">improc_internal.h 不在 improc.h 內，只給核心與測試使用。</text>
+</svg>
