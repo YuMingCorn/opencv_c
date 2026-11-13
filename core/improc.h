@@ -7,6 +7,7 @@
 #include "mat.h"
 #include "pixel.h"
 #include "utils.h"
+#include "morph.h"
 // lane-append: includes
 
 #ifndef IMPROC_CORE_ONLY
