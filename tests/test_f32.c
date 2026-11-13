@@ -120,9 +120,14 @@ static void sweep_one(int cols, int cn) {
     convert_to(g, f, 3.1f, 20.0f);
     for (int y = 0; y < rows; y++) {
         for (int i = 0; i < n; i++) {
-            float want = (float)mat_row(u8, y)[i] * alpha + beta;
+            // Store each product in a volatile so the compiler cannot fuse
+            // it with the add (Apple clang contracts to FMA by default);
+            // the library is built with -ffp-contract=off.
+            volatile float p0   = (float)mat_row(u8, y)[i] * alpha;
+            float          want = p0 + beta;
             CHECK(float_at(f, y, i) == want);
-            float t = float_at(f, y, i) * 3.1f + 20.0f;
+            volatile float p1 = float_at(f, y, i) * 3.1f;
+            float          t  = p1 + 20.0f;
             CHECK(float_at(g, y, i) == t);
             CHECK_EQ_INT(mat_row(u8b, y)[i], ref_to_u8(t));
         }
