@@ -1,5 +1,7 @@
 #include "mat.h"
 
+#include <limits.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "utils.h"
@@ -69,7 +71,8 @@ struct Mat *alloc_mat_synthetic(int rows, int cols) {
             uchar *p = MAT_AT_ELEM_PTR(*mat, uchar, i, j);
             p[0]     = (uchar)(j * 255 / (cols > 1 ? cols - 1 : 1));
             p[1]     = (uchar)(i * 255 / (rows > 1 ? rows - 1 : 1));
-            p[2]     = (uchar)((i + j) * 255 / (rows + cols > 2 ? rows + cols - 2 : 1));
+            p[2]     = (uchar)((i + j) * 255 /
+                               (rows + cols > 2 ? rows + cols - 2 : 1));
         }
     }
     return mat;
@@ -91,22 +94,32 @@ void *mat_at(const struct Mat *mat, int row, int col) {
     return (void *)(mat->data + mat->step[0] * row + mat->step[1] * col);
 }
 
-struct Mat *alloc_mat_from_buffer(uchar *buffer, size_t buffer_size) {
-    int width = 0, height = 0, channels = 0;
-    uchar *data = (uchar *)stbi_load_from_memory(buffer, (int)buffer_size,
-                                                 &width, &height, &channels, 0);
-    if (!data) {
-        fprintf(stderr, "Failed to load image from buffer\n");
-        return NULL;
-    }
-    struct Mat *mat = mat_create(height, width, CV_MAKETYPE(CV_8U, channels));
-    if (mat == NULL) {
+// Takes ownership of the stb-allocated data and always releases it.
+static struct Mat *mat_from_stb(uchar *data, int w, int h, int channels) {
+    if (channels < 1 || channels > 4) {
         stbi_image_free(data);
         return NULL;
     }
-    memcpy(mat->data, data, (size_t)height * mat->step[0]);
+    struct Mat *mat = mat_create(h, w, CV_MAKETYPE(CV_8U, channels));
+    if (mat != NULL) {
+        memcpy(mat->data, data, (size_t)h * mat->step[0]);
+    }
     stbi_image_free(data);
     return mat;
+}
+
+struct Mat *alloc_mat_from_buffer(const uchar *buffer, size_t buffer_size) {
+    if (buffer == NULL || buffer_size > INT_MAX) {
+        return NULL;
+    }
+    int    width = 0, height = 0, channels = 0;
+    uchar *data = stbi_load_from_memory(buffer, (int)buffer_size, &width,
+                                        &height, &channels, 0);
+    if (data == NULL) {
+        fprintf(stderr, "Failed to load image from buffer\n");
+        return NULL;
+    }
+    return mat_from_stb(data, width, height, channels);
 }
 
 struct Mat *alloc_mat_from_file(const char *filename) {
@@ -116,23 +129,60 @@ struct Mat *alloc_mat_from_file(const char *filename) {
         fprintf(stderr, "Failed to load image %s\n", filename);
         return NULL;
     }
-    struct Mat *mat = mat_create(height, width, CV_MAKETYPE(CV_8U, channels));
-    if (mat == NULL) {
-        stbi_image_free(data);
-        return NULL;
-    }
-    memcpy(mat->data, data, (size_t)height * mat->step[0]);
-    stbi_image_free(data);
-    return mat;
+    return mat_from_stb(data, width, height, channels);
 }
 
-void mat_write(const char *filename, struct Mat *mat) {
-    if (stbi_write_jpg(filename, mat->cols, mat->rows,
-                       (int)mat_channel_num(mat), mat->data, 100)) {
-        printf("Image successfully written to %s\n", filename);
-    } else {
-        fprintf(stderr, "Failed to write image %s\n", filename);
+// Case-insensitive match of the extension after the last '.' in the file name.
+static int has_extension(const char *filename, const char *ext) {
+    const char *name = filename;
+    for (const char *p = filename; *p; p++) {
+        if (*p == '/' || *p == '\\') {
+            name = p + 1;
+        }
     }
+    const char *dot = NULL;
+    for (const char *p = name; *p; p++) {
+        if (*p == '.') {
+            dot = p;
+        }
+    }
+    if (dot == NULL) {
+        return 0;
+    }
+    const char *a = dot + 1;
+    while (*a && *ext) {
+        char c = *a;
+        if (c >= 'A' && c <= 'Z') {
+            c = (char)(c - 'A' + 'a');
+        }
+        if (c != *ext) {
+            return 0;
+        }
+        a++;
+        ext++;
+    }
+    return *a == '\0' && *ext == '\0';
+}
+
+int mat_write(const char *filename, const struct Mat *mat) {
+    ASSERT(mat != NULL && mat_depth(mat) == CV_8U);
+    int ok = 0;
+    int cn = (int)mat_channel_num(mat);
+    if (has_extension(filename, "png")) {
+        ok = stbi_write_png(filename, mat->cols, mat->rows, cn, mat->data,
+                            (int)mat->step[0]);
+    } else if (has_extension(filename, "jpg") ||
+               has_extension(filename, "jpeg")) {
+        ok = stbi_write_jpg(filename, mat->cols, mat->rows, cn, mat->data, 100);
+    } else {
+        fprintf(stderr, "Unsupported image extension: %s\n", filename);
+        return -1;
+    }
+    if (!ok) {
+        fprintf(stderr, "Failed to write image %s\n", filename);
+        return -1;
+    }
+    return 0;
 }
 
 void mat_info(const struct Mat *mat) {
@@ -144,10 +194,16 @@ void mat_info(const struct Mat *mat) {
 
 size_t mat_depth(const struct Mat *self) { return CV_MAT_DEPTH(self->flags); }
 
-size_t mat_channel_size(const struct Mat *self) { return CV_CH_SIZE(self->flags); }
+size_t mat_channel_size(const struct Mat *self) {
+    return CV_CH_SIZE(self->flags);
+}
 
-size_t mat_channel_num(const struct Mat *self) { return CV_MAT_CN(self->flags); }
+size_t mat_channel_num(const struct Mat *self) {
+    return CV_MAT_CN(self->flags);
+}
 
-size_t mat_pixel_size(const struct Mat *self) { return CV_PIXEL_SIZE(self->flags); }
+size_t mat_pixel_size(const struct Mat *self) {
+    return CV_PIXEL_SIZE(self->flags);
+}
 
 size_t mat_type(const struct Mat *self) { return CV_MAT_TYPE(self->flags); }
