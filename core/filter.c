@@ -103,7 +103,7 @@ void box_filter(struct Mat *dst, const struct Mat *src, int ksize) {
         colsum_add(sum, tmp + (size_t)border_reflect_101(i, rows) * (size_t)n,
                    n);
     }
-    const uint32_t area = (uint32_t)(ksize * ksize);
+    const uint32_t area = (uint32_t)ksize * (uint32_t)ksize;
     for (int y = 0; y < rows; y++) {
         box_vrow(sum, mat_row(dst, y), n, area);
         colsum_add(

@@ -1,5 +1,7 @@
 #include "color.h"
 
+// Largest value is (77 + 150 + 29) * 255 + 128 = 256 * 255 + 128 = 65408, which
+// fits a 16-bit unsigned, so this is safe where int is 16 bits.
 static inline uchar luma(unsigned r, unsigned g, unsigned b) {
     return (uchar)((77u * r + 150u * g + 29u * b + 128u) >> 8);
 }
