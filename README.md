@@ -45,3 +45,7 @@ cmake --build build-release
 # 量測 RGB 轉灰階的耗時
 ./build-release/bench_gray
 ```
+
+## 架構圖
+
+模組關係、`struct Mat` 資料模型與各演算法流程的圖解見 [docs/README.md](docs/README.md)。

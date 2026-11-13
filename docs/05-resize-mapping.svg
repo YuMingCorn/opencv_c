@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 940" width="1280" height="940" role="img" aria-labelledby="t d">
+<title id="t">resize 座標對應：半像素中心、x0 / x1 / fx 表與 Q8 權重</title>
+<desc id="d">以 sw = 4、dw = 8 為例，說明 resize 的半像素中心對應、查表內容，以及 INTER_NEAREST 與 INTER_LINEAR 的處理流程。</desc>
+<defs>
+<style>
+.t{font-family:"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC","Helvetica Neue",Arial,sans-serif;fill:#1F2328}
+.m{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;fill:#1F2328}
+.g{fill:#57606A}
+.r{fill:#CF222E}
+.b{font-weight:700}
+.api{fill:#DDF4FF;stroke:#0969DA;stroke-width:1.5}
+.data{fill:#DAFBE1;stroke:#1A7F37;stroke-width:1.5}
+.kern{fill:#FFF8C5;stroke:#9A6700;stroke-width:1.5}
+.exe{fill:#FBEFFF;stroke:#8250DF;stroke-width:1.5}
+.ext{fill:#F6F8FA;stroke:#6E7781;stroke-width:1.5}
+.err{fill:#FFEBE9;stroke:#CF222E;stroke-width:1.5}
+.panel{fill:none;stroke:#D0D7DE;stroke-width:1}
+.grid{fill:none;stroke:#D0D7DE;stroke-width:1}
+.hd{fill:#F6F8FA;stroke:#D0D7DE;stroke-width:1}
+.ar{fill:none;stroke:#57606A;stroke-width:1.5}
+.are{fill:none;stroke:#CF222E;stroke-width:1.5}
+.dash{stroke-dasharray:5 4}
+</style>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57606A"/></marker>
+<marker id="arr-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#CF222E"/></marker>
+</defs>
+<rect x="0" y="0" width="1280" height="940" rx="8" fill="#FFFFFF" stroke="#D0D7DE"/>
+<text class="t b" x="32" y="44" font-size="22">resize 座標對應：半像素中心、x0 / x1 / fx 表與 Q8 權重</text>
+<text class="t g" x="32" y="66" font-size="13">core/geometry.c：linear_coord、resize_nearest_row、resize_linear_row</text>
+<rect class="panel" x="32" y="90" width="1216" height="310" rx="8"/>
+<text class="t b" x="44" y="112" font-size="15">半像素中心對應（例：sw = 4 → dw = 8）</text>
+<text class="t g" x="44" y="180" font-size="12">src（sw = 4）</text>
+<text class="t g" x="44" y="325" font-size="12">dst（dw = 8）</text>
+<rect class="data" x="320" y="150" width="160" height="50" rx="0"/>
+<text class="m" x="400" y="170" font-size="12" text-anchor="middle">src 0</text>
+<circle cx="400" cy="186" r="3" fill="#1F2328"/>
+<rect class="data" x="480" y="150" width="160" height="50" rx="0"/>
+<text class="m" x="560" y="170" font-size="12" text-anchor="middle">src 1</text>
+<circle cx="560" cy="186" r="3" fill="#1F2328"/>
+<rect class="data" x="640" y="150" width="160" height="50" rx="0"/>
+<text class="m" x="720" y="170" font-size="12" text-anchor="middle">src 2</text>
+<circle cx="720" cy="186" r="3" fill="#1F2328"/>
+<rect class="data" x="800" y="150" width="160" height="50" rx="0"/>
+<text class="m" x="880" y="170" font-size="12" text-anchor="middle">src 3</text>
+<circle cx="880" cy="186" r="3" fill="#1F2328"/>
+<line x1="360" y1="300" x2="360" y2="202" stroke="#57606A" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="440" y1="300" x2="440" y2="202" stroke="#57606A" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="520" y1="300" x2="520" y2="202" stroke="#57606A" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="600" y1="300" x2="600" y2="202" stroke="#57606A" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="680" y1="300" x2="680" y2="202" stroke="#57606A" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="760" y1="300" x2="760" y2="202" stroke="#57606A" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="840" y1="300" x2="840" y2="202" stroke="#57606A" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="920" y1="300" x2="920" y2="202" stroke="#57606A" stroke-width="1" stroke-dasharray="4 3"/>
+<rect class="api" x="320" y="300" width="80" height="40" rx="0"/>
+<text class="m" x="360" y="325" font-size="13" text-anchor="middle">0</text>
+<rect class="api" x="400" y="300" width="80" height="40" rx="0"/>
+<text class="m" x="440" y="325" font-size="13" text-anchor="middle">1</text>
+<rect class="api" x="480" y="300" width="80" height="40" rx="0"/>
+<text class="m" x="520" y="325" font-size="13" text-anchor="middle">2</text>
+<rect class="api" x="560" y="300" width="80" height="40" rx="0"/>
+<text class="m" x="600" y="325" font-size="13" text-anchor="middle">3</text>
+<rect class="api" x="640" y="300" width="80" height="40" rx="0"/>
+<text class="m" x="680" y="325" font-size="13" text-anchor="middle">4</text>
+<rect class="api" x="720" y="300" width="80" height="40" rx="0"/>
+<text class="m" x="760" y="325" font-size="13" text-anchor="middle">5</text>
+<rect class="api" x="800" y="300" width="80" height="40" rx="0"/>
+<text class="m" x="840" y="325" font-size="13" text-anchor="middle">6</text>
+<rect class="api" x="880" y="300" width="80" height="40" rx="0"/>
+<text class="m" x="920" y="325" font-size="13" text-anchor="middle">7</text>
+<text class="t r" x="360" y="360" font-size="12" text-anchor="middle">夾到 src 0</text>
+<text class="t r" x="920" y="360" font-size="12" text-anchor="middle">夾到 src 3</text>
+<text class="m" x="44" y="226" font-size="12" xml:space="preserve">src_pos = (dx + 0.5) × sw / dw − 0.5</text>
+<text class="m" x="44" y="243" font-size="12" xml:space="preserve">        = n / d</text>
+<text class="m" x="44" y="260" font-size="12" xml:space="preserve">n = (2×dx + 1) × sw − dw</text>
+<text class="m" x="44" y="277" font-size="12" xml:space="preserve">d = 2 × dw</text>
+<text class="t g" x="44" y="296" font-size="11">（geometry.c:77-78）</text>
+<text class="t" x="990" y="172" font-size="12">像素中心在 index + 0.5</text>
+<text class="t" x="990" y="200" font-size="12">dst 0 與 dst 7 落在</text>
+<text class="t" x="990" y="218" font-size="12">src 中心之外，</text>
+<text class="t" x="990" y="236" font-size="12">被夾到邊界</text>
+<rect class="panel" x="32" y="420" width="1216" height="230" rx="8"/>
+<text class="t b" x="44" y="442" font-size="15">同一例子的查表內容</text>
+<rect class="hd" x="48" y="456" width="770" height="30" rx="0"/>
+<text class="m g" x="56" y="476" font-size="12">dx</text>
+<text class="m g b" x="293" y="476" font-size="12" text-anchor="middle">0</text>
+<text class="m g b" x="363" y="476" font-size="12" text-anchor="middle">1</text>
+<text class="m g b" x="433" y="476" font-size="12" text-anchor="middle">2</text>
+<text class="m g b" x="503" y="476" font-size="12" text-anchor="middle">3</text>
+<text class="m g b" x="573" y="476" font-size="12" text-anchor="middle">4</text>
+<text class="m g b" x="643" y="476" font-size="12" text-anchor="middle">5</text>
+<text class="m g b" x="713" y="476" font-size="12" text-anchor="middle">6</text>
+<text class="m g b" x="783" y="476" font-size="12" text-anchor="middle">7</text>
+<line class="grid" x1="48" y1="486" x2="818" y2="486"/>
+<text class="m" x="56" y="506" font-size="12">n</text>
+<text class="m" x="293" y="506" font-size="12" text-anchor="middle">−4</text>
+<text class="m" x="363" y="506" font-size="12" text-anchor="middle">4</text>
+<text class="m" x="433" y="506" font-size="12" text-anchor="middle">12</text>
+<text class="m" x="503" y="506" font-size="12" text-anchor="middle">20</text>
+<text class="m" x="573" y="506" font-size="12" text-anchor="middle">28</text>
+<text class="m" x="643" y="506" font-size="12" text-anchor="middle">36</text>
+<text class="m" x="713" y="506" font-size="12" text-anchor="middle">44</text>
+<text class="m" x="783" y="506" font-size="12" text-anchor="middle">52</text>
+<line class="grid" x1="48" y1="516" x2="818" y2="516"/>
+<text class="m" x="56" y="536" font-size="12">x0</text>
+<text class="m" x="293" y="536" font-size="12" text-anchor="middle">0</text>
+<text class="m" x="363" y="536" font-size="12" text-anchor="middle">0</text>
+<text class="m" x="433" y="536" font-size="12" text-anchor="middle">0</text>
+<text class="m" x="503" y="536" font-size="12" text-anchor="middle">1</text>
+<text class="m" x="573" y="536" font-size="12" text-anchor="middle">1</text>
+<text class="m" x="643" y="536" font-size="12" text-anchor="middle">2</text>
+<text class="m" x="713" y="536" font-size="12" text-anchor="middle">2</text>
+<text class="m" x="783" y="536" font-size="12" text-anchor="middle">3</text>
+<line class="grid" x1="48" y1="546" x2="818" y2="546"/>
+<text class="m" x="56" y="566" font-size="12">fx（Q8）</text>
+<text class="m" x="293" y="566" font-size="12" text-anchor="middle">0</text>
+<text class="m" x="363" y="566" font-size="12" text-anchor="middle">64</text>
+<text class="m" x="433" y="566" font-size="12" text-anchor="middle">192</text>
+<text class="m" x="503" y="566" font-size="12" text-anchor="middle">64</text>
+<text class="m" x="573" y="566" font-size="12" text-anchor="middle">192</text>
+<text class="m" x="643" y="566" font-size="12" text-anchor="middle">64</text>
+<text class="m" x="713" y="566" font-size="12" text-anchor="middle">192</text>
+<text class="m" x="783" y="566" font-size="12" text-anchor="middle">0</text>
+<line class="grid" x1="48" y1="576" x2="818" y2="576"/>
+<text class="m" x="56" y="596" font-size="12">x1 = min(x0 + 1, sw − 1)</text>
+<text class="m" x="293" y="596" font-size="12" text-anchor="middle">1</text>
+<text class="m" x="363" y="596" font-size="12" text-anchor="middle">1</text>
+<text class="m" x="433" y="596" font-size="12" text-anchor="middle">1</text>
+<text class="m" x="503" y="596" font-size="12" text-anchor="middle">2</text>
+<text class="m" x="573" y="596" font-size="12" text-anchor="middle">2</text>
+<text class="m" x="643" y="596" font-size="12" text-anchor="middle">3</text>
+<text class="m" x="713" y="596" font-size="12" text-anchor="middle">3</text>
+<text class="m" x="783" y="596" font-size="12" text-anchor="middle">3</text>
+<line class="grid" x1="48" y1="606" x2="818" y2="606"/>
+<text class="m" x="56" y="626" font-size="12">INTER_NEAREST 的 x0</text>
+<text class="m" x="293" y="626" font-size="12" text-anchor="middle">0</text>
+<text class="m" x="363" y="626" font-size="12" text-anchor="middle">0</text>
+<text class="m" x="433" y="626" font-size="12" text-anchor="middle">1</text>
+<text class="m" x="503" y="626" font-size="12" text-anchor="middle">1</text>
+<text class="m" x="573" y="626" font-size="12" text-anchor="middle">2</text>
+<text class="m" x="643" y="626" font-size="12" text-anchor="middle">2</text>
+<text class="m" x="713" y="626" font-size="12" text-anchor="middle">3</text>
+<text class="m" x="783" y="626" font-size="12" text-anchor="middle">3</text>
+<line class="grid" x1="48" y1="636" x2="818" y2="636"/>
+<rect class="grid" x="48" y="456" width="770" height="180"/>
+<line class="grid" x1="258" y1="456" x2="258" y2="636"/>
+<line class="grid" x1="328" y1="456" x2="328" y2="636"/>
+<line class="grid" x1="398" y1="456" x2="398" y2="636"/>
+<line class="grid" x1="468" y1="456" x2="468" y2="636"/>
+<line class="grid" x1="538" y1="456" x2="538" y2="636"/>
+<line class="grid" x1="608" y1="456" x2="608" y2="636"/>
+<line class="grid" x1="678" y1="456" x2="678" y2="636"/>
+<line class="grid" x1="748" y1="456" x2="748" y2="636"/>
+<text class="t b" x="840" y="470" font-size="12">公式（linear_coord、resize）</text>
+<text class="m" x="840" y="490" font-size="12" xml:space="preserve">d = 2 × dw = 16</text>
+<text class="m" x="840" y="506" font-size="12" xml:space="preserve">n &lt; 0 → x0 = 0, fx = 0</text>
+<text class="m" x="840" y="522" font-size="12" xml:space="preserve">否則 x0 = n / d</text>
+<text class="m" x="840" y="538" font-size="12" xml:space="preserve">  fx = ((n − x0×d) × 256 + dw) / d</text>
+<text class="m" x="840" y="554" font-size="12" xml:space="preserve">x0 &gt;= sw − 1 → x0 = sw − 1, fx = 0</text>
+<text class="t" x="840" y="570" font-size="12" xml:space="preserve">fx 範圍 0..256（四捨五入可能到 256，</text>
+<text class="t" x="840" y="586" font-size="12" xml:space="preserve">所以用 uint16_t）</text>
+<text class="t" x="840" y="602" font-size="12" xml:space="preserve">INTER_NEAREST：沒有權重</text>
+<text class="m" x="840" y="618" font-size="12" xml:space="preserve">  x0 = ((2×x + 1) × sw) / (2 × dw)</text>
+<text class="t g" x="1140" y="538" font-size="11">geometry.c:82-87</text>
+<text class="t g" x="1130" y="618" font-size="11">geometry.c:114-117</text>
+<rect class="panel" x="32" y="670" width="1216" height="238" rx="8"/>
+<text class="t b" x="44" y="692" font-size="15">resize(dst, src, interpolation) 流程</text>
+<rect class="api" x="48" y="706" width="230" height="172" rx="6"/>
+<text class="m b" x="163" y="751.5" font-size="13" text-anchor="middle">resize</text>
+<text class="t" x="163" y="769.5" font-size="12" text-anchor="middle">ASSERT：不可 alias、8U、</text>
+<text class="t" x="163" y="787.5" font-size="12" text-anchor="middle">cn 為 1/3/4、同 type</text>
+<text class="t" x="163" y="805.5" font-size="12" text-anchor="middle">dst 為空 → return</text>
+<text class="t" x="163" y="823.5" font-size="12" text-anchor="middle">ASSERT src 非空</text>
+<text class="t" x="163" y="841.5" font-size="12" text-anchor="middle">目標尺寸 = dst 尺寸</text>
+<rect class="data" x="310" y="706" width="280" height="66" rx="6"/>
+<text class="m b" x="450" y="734.5" font-size="13" text-anchor="middle">INTER_NEAREST</text>
+<text class="t" x="450" y="752.5" font-size="12" text-anchor="middle">預先建表 x0[dw]</text>
+<rect class="kern" x="620" y="706" width="300" height="66" rx="6"/>
+<text class="t" x="770" y="726.5" font-size="12" text-anchor="middle">每列：</text>
+<text class="m" x="770" y="743.5" font-size="12" text-anchor="middle">sy = ((2×y + 1) × sh) / (2 × dh)</text>
+<text class="m" x="770" y="760.5" font-size="12" text-anchor="middle">resize_nearest_row(src 第 sy 列, ...)</text>
+<rect class="data" x="310" y="796" width="280" height="82" rx="6"/>
+<text class="m b" x="450" y="823.5" font-size="13" text-anchor="middle">INTER_LINEAR</text>
+<text class="t" x="450" y="841.5" font-size="12" text-anchor="middle">預先建表 x0[dw]、x1[dw]、fx[dw]</text>
+<text class="t" x="450" y="859.5" font-size="12" text-anchor="middle">（linear_coord，每欄一次）</text>
+<rect class="kern" x="620" y="796" width="300" height="82" rx="6"/>
+<text class="t" x="770" y="817.5" font-size="12" text-anchor="middle">每列：</text>
+<text class="m" x="770" y="833.5" font-size="12" text-anchor="middle">linear_coord(y, sh, dh) → y0, fy</text>
+<text class="m" x="770" y="849.5" font-size="12" text-anchor="middle">y1 = min(y0 + 1, sh − 1)（不建表）</text>
+<text class="m" x="770" y="865.5" font-size="12" text-anchor="middle">resize_linear_row(r0, r1, ...)</text>
+<rect class="kern" x="950" y="706" width="282" height="172" rx="6"/>
+<text class="t b" x="1091" y="739.5" font-size="13" text-anchor="middle">雙線性（Q8 × Q8）</text>
+<text class="m" x="1091" y="758.5" font-size="12" text-anchor="middle">top = a0×(256 − fx) + a1×fx</text>
+<text class="m" x="1091" y="777.5" font-size="12" text-anchor="middle">bot = b0×(256 − fx) + b1×fx</text>
+<text class="m" x="1091" y="796.5" font-size="12" text-anchor="middle">d = (top×(256 − fy) + bot×fy</text>
+<text class="m" x="1091" y="815.5" font-size="12" text-anchor="middle">+ 32768) &gt;&gt; 16</text>
+<text class="t" x="1091" y="834.5" font-size="12" text-anchor="middle">a0, a1 = r0 的 x0, x1</text>
+<text class="t" x="1091" y="853.5" font-size="12" text-anchor="middle">b0, b1 = r1 的 x0, x1</text>
+<path class="ar" d="M278 780 H294 V739 H308" marker-end="url(#arr)"/>
+<path class="ar" d="M278 804 H294 V837 H308" marker-end="url(#arr)"/>
+<path class="ar" d="M590 739 H618" marker-end="url(#arr)"/>
+<path class="ar" d="M590 837 H618" marker-end="url(#arr)"/>
+<path class="ar" d="M920 837 H948" marker-end="url(#arr)"/>
+<text class="t g" x="48" y="898" font-size="12">xs = int[2 × dw]（x0 = xs，x1 = xs + dw）；fxs = uint16_t[dw]；皆 fast_malloc（geometry.c:108-111）</text>
+<text class="t g" x="1232" y="898" font-size="11" text-anchor="end">來源：geometry.c:54-71、93-139</text>
+</svg>
