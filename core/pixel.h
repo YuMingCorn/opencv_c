@@ -22,12 +22,15 @@ void threshold(struct Mat *dst, const struct Mat *src, uchar thresh,
 void mat_lut(struct Mat *dst, const struct Mat *src, const uchar lut[256]);
 
 // dst = saturate_u8(round(src * alpha_q8 / 256 + beta)), CV_8UCn -> CV_8UCn.
-// alpha_q8 in [-32768, 32767], beta in [-65536, 65535].
-void convert_scale(struct Mat *dst, const struct Mat *src, int alpha_q8,
-                   int beta);
+// alpha_q8 in [-32768, 32767], beta in [-65536, 65535]. Intermediates are
+// int32_t: 255 * 32767 + 65535 * 256 + 128 < 2^25.
+void convert_scale(struct Mat *dst, const struct Mat *src, int32_t alpha_q8,
+                   int32_t beta);
 
 // dst = saturate_u8(round(|src * alpha_q8 / 256 + beta|)), CV_16SCn -> CV_8UCn.
-void convert_scale_abs(struct Mat *dst, const struct Mat *src, int alpha_q8,
-                       int beta);
+// Same ranges. 32768 * 32768 + 65536 * 256 < 2^31, so int32_t does not
+// overflow.
+void convert_scale_abs(struct Mat *dst, const struct Mat *src, int32_t alpha_q8,
+                       int32_t beta);
 
 #endif // PIXEL_H_

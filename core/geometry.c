@@ -54,7 +54,7 @@ static void resize_nearest_row(const uchar *restrict s, uchar *restrict d,
 static void resize_linear_row(const uchar *restrict r0,
                               const uchar *restrict r1, uchar *restrict d,
                               int dst_w, int cn, const int *x0, const int *x1,
-                              const uint16_t *fx, int fy) {
+                              const uint16_t *fx, uint16_t fy) {
     for (int x = 0; x < dst_w; x++, d += cn) {
         const uchar *a0 = r0 + (size_t)x0[x] * (size_t)cn;
         const uchar *a1 = r0 + (size_t)x1[x] * (size_t)cn;

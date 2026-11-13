@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "filter.h"
 #include "pixel.h"
 #include "test_mat_util.h"
 
@@ -245,12 +246,99 @@ static void test_convert_scale_abs_c3(void) {
     free_mat(&dst);
 }
 
+// Boundary probes for targets where int is 16 bits. Results are checked
+// against closed forms that do not depend on the library's own arithmetic.
+static void test_convert_scale_extreme_params(void) {
+    // v = i * 32767 + 65535 * 256 + 128 >= 2^24, so every lane saturates high.
+    const uchar in[] = {0, 1, 128, 255};
+    const uchar hi[] = {255, 255, 255, 255};
+    scale_c1(32767, 65535, 4, in, hi);
+    // v = -i * 32768 - 65536 * 256 + 128 < 0, so every lane clamps to zero.
+    const uchar lo[] = {0, 0, 0, 0};
+    scale_c1(-32768, -65536, 4, in, lo);
+    // 255 * 32767 / 256 = 32639.0 -> saturates, 1 * 32767 / 256 = 128.
+    const uchar mid_in[] = {0, 1, 2};
+    const uchar mid_o[]  = {0, 128, 255};
+    scale_c1(32767, 0, 3, mid_in, mid_o);
+}
+
+static void test_convert_scale_abs_extreme_params(void) {
+    const int16_t in[] = {-32768, 32767, 0, -1};
+    const uchar   hi[] = {255, 255, 0, 128};
+    abs_c1(-32768, 0, 4, in, hi);
+    // |-32768 * 32767 / 256 + 65535| and |32767 * -32768 / 256 - 65536| clamp.
+    const uchar hi2[] = {255, 255, 255, 255};
+    abs_c1(32767, 65535, 4, in, hi2);
+    const uchar hi3[] = {255, 255, 255, 255};
+    abs_c1(-32768, -65536, 4, in, hi3);
+}
+
+static int ref_reflect101(int p, int len) {
+    if (len == 1) {
+        return 0;
+    }
+    while (p < 0 || p >= len) {
+        p = p < 0 ? -p : 2 * (len - 1) - p;
+    }
+    return p;
+}
+
+// ksize * ksize reaches 33489 here, which does not fit a 16-bit int.
+static void check_box_large_kernel(const uchar in[4], int ksize) {
+    struct Mat *src = mat_from_bytes(2, 2, CV_8UC1, in);
+    struct Mat *dst = alloc_mat(2, 2, CV_8UC1);
+    box_filter(dst, src, ksize);
+
+    uchar          expected[4];
+    const int      r    = ksize / 2;
+    const uint32_t area = (uint32_t)ksize * (uint32_t)ksize;
+    for (int y = 0; y < 2; y++) {
+        for (int x = 0; x < 2; x++) {
+            uint32_t sum = 0;
+            for (int dy = -r; dy <= r; dy++) {
+                for (int dx = -r; dx <= r; dx++) {
+                    sum += in[ref_reflect101(y + dy, 2) * 2 +
+                              ref_reflect101(x + dx, 2)];
+                }
+            }
+            expected[y * 2 + x] = (uchar)((sum + area / 2) / area);
+        }
+    }
+    CHECK_MAT_BYTES(dst, expected);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
+static void test_box_filter_large_kernel_area(void) {
+    const uchar a[4] = {0, 255, 255, 0};
+    const uchar b[4] = {1, 2, 3, 4};
+    const uchar c[4] = {255, 255, 255, 255};
+    check_box_large_kernel(a, 183);
+    check_box_large_kernel(b, 183);
+    check_box_large_kernel(c, 183);
+    check_box_large_kernel(a, 255);
+    check_box_large_kernel(c, 255);
+}
+
+static void test_synthetic_large_values(void) {
+    // j * 255 passes 32767 once cols > 128.
+    struct Mat *m = alloc_mat_synthetic(2, 300);
+    CHECK_EQ_INT(MAT_AT_ELEM_PTR(*m, uchar, 0, 299)[0], 255);
+    CHECK_EQ_INT(MAT_AT_ELEM_PTR(*m, uchar, 0, 150)[0], 150 * 255 / 299);
+    CHECK_EQ_INT(MAT_AT_ELEM_PTR(*m, uchar, 1, 299)[2], 255);
+    free_mat(&m);
+}
+
 int main(void) {
     RUN_TEST(test_convert_scale_c3);
     RUN_TEST(test_convert_scale_values);
     RUN_TEST(test_convert_scale_identity);
     RUN_TEST(test_convert_scale_abs_values);
     RUN_TEST(test_convert_scale_abs_c3);
+    RUN_TEST(test_convert_scale_extreme_params);
+    RUN_TEST(test_convert_scale_abs_extreme_params);
+    RUN_TEST(test_box_filter_large_kernel_area);
+    RUN_TEST(test_synthetic_large_values);
     RUN_TEST(test_lut_invert);
     RUN_TEST(test_lut_identity);
     RUN_TEST(test_lut_constant);

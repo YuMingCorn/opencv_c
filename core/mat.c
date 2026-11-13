@@ -93,10 +93,11 @@ struct Mat *alloc_mat_synthetic(int rows, int cols) {
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             uchar *p = MAT_AT_ELEM_PTR(*mat, uchar, i, j);
-            p[0]     = (uchar)(j * 255 / (cols > 1 ? cols - 1 : 1));
-            p[1]     = (uchar)(i * 255 / (rows > 1 ? rows - 1 : 1));
-            p[2]     = (uchar)((i + j) * 255 /
-                               (rows + cols > 2 ? rows + cols - 2 : 1));
+            p[0]     = (uchar)((int32_t)j * 255 / (cols > 1 ? cols - 1 : 1));
+            p[1]     = (uchar)((int32_t)i * 255 / (rows > 1 ? rows - 1 : 1));
+            p[2] = (uchar)(((int32_t)i + j) * 255 /
+                           ((int32_t)rows + cols > 2 ? (int32_t)rows + cols - 2
+                                                     : 1));
         }
     }
     return mat;

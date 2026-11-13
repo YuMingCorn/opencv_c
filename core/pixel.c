@@ -105,8 +105,8 @@ void mat_lut(struct Mat *dst, const struct Mat *src, const uchar lut[256]) {
     }
 }
 
-void convert_scale(struct Mat *dst, const struct Mat *src, int alpha_q8,
-                   int beta) {
+void convert_scale(struct Mat *dst, const struct Mat *src, int32_t alpha_q8,
+                   int32_t beta) {
     ASSERT(dst != src && dst->data != src->data);
     ASSERT(is_u8_image_type(mat_type(src)));
     ASSERT(mat_type(dst) == mat_type(src));
@@ -119,8 +119,8 @@ void convert_scale(struct Mat *dst, const struct Mat *src, int alpha_q8,
     }
     uchar lut[256];
     for (int i = 0; i < 256; i++) {
-        int v  = i * alpha_q8 + beta * 256 + 128;
-        lut[i] = (uchar)(v < 0 ? 0 : ((v >> 8) > 255 ? 255 : (v >> 8)));
+        int32_t v = (int32_t)i * alpha_q8 + beta * 256 + 128;
+        lut[i]    = (uchar)(v < 0 ? 0 : ((v >> 8) > 255 ? 255 : (v >> 8)));
     }
     int n = src->cols * (int)mat_channel_num(src);
     for (int y = 0; y < src->rows; y++) {
@@ -129,17 +129,17 @@ void convert_scale(struct Mat *dst, const struct Mat *src, int alpha_q8,
 }
 
 static void scale_abs_row(const int16_t *restrict s, uchar *restrict d, int n,
-                          int alpha_q8, int beta) {
+                          int32_t alpha_q8, int32_t beta) {
     for (int i = 0; i < n; i++) {
-        int v = s[i] * alpha_q8 + beta * 256;
-        int a = v < 0 ? -v : v;
-        int r = (a + 128) >> 8;
-        d[i]  = (uchar)(r > 255 ? 255 : r);
+        int32_t v = (int32_t)s[i] * alpha_q8 + beta * 256;
+        int32_t a = v < 0 ? -v : v;
+        int32_t r = (a + 128) >> 8; // a >= 0
+        d[i]      = (uchar)(r > 255 ? 255 : r);
     }
 }
 
-void convert_scale_abs(struct Mat *dst, const struct Mat *src, int alpha_q8,
-                       int beta) {
+void convert_scale_abs(struct Mat *dst, const struct Mat *src, int32_t alpha_q8,
+                       int32_t beta) {
     ASSERT(dst != NULL && src != NULL);
     size_t st = mat_type(src);
     ASSERT(st == (size_t)CV_16SC1 || st == (size_t)CV_16SC3 ||

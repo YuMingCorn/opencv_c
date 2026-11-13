@@ -86,12 +86,12 @@ idf_component_register(
 
 | 目標 | 編譯器版本 | text | data | bss |
 |---|---|---|---|---|
-| aarch64 | GCC 15.2.0 | 13520 | 304 | 8 |
-| Cortex-M4F | GCC 14.2.1 | 8686 | 8 | 4 |
-| Cortex-M7 | GCC 14.2.1 | 8688 | 8 | 4 |
-| Cortex-M0+ | GCC 14.2.1 | 8740 | 8 | 4 |
-| Cortex-M0+（無 malloc） | GCC 14.2.1 | 8253 | 0 | 12 |
-| AVR ATmega328P（無 malloc） | GCC 14.3.0 | 此階段尚無法編譯（-Wtype-limits）| | |
+| aarch64 | GCC 15.2.0 | 13304 | 304 | 8 |
+| Cortex-M4F | GCC 14.2.1 | 8468 | 8 | 4 |
+| Cortex-M7 | GCC 14.2.1 | 8468 | 8 | 4 |
+| Cortex-M0+ | GCC 14.2.1 | 8542 | 8 | 4 |
+| Cortex-M0+（無 malloc） | GCC 14.2.1 | 8037 | 0 | 12 |
+| AVR ATmega328P（無 malloc） | GCC 14.3.0 | 11128 | 0 | 6 |
 
 下表列出各運算向 `fast_malloc` 要求的暫存記憶體（`rows`、`cols` 為影像尺寸，`cn` 為通道數，`n = cols * cn`，`r = ksize / 2`）。
 
