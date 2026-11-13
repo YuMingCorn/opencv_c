@@ -1,1 +1,119 @@
 #include "filter.h"
+
+#include <stdint.h>
+
+#include "utils.h"
+
+static inline int border_reflect_101(int p, int len) {
+    if (len == 1) {
+        return 0;
+    }
+    while (p < 0 || p >= len) {
+        p = p < 0 ? -p : 2 * (len - 1) - p;
+    }
+    return p;
+}
+
+static int is_u8_image_type(const struct Mat *m) {
+    size_t t = mat_type(m);
+    return t == (size_t)CV_8UC1 || t == (size_t)CV_8UC3 || t == (size_t)CV_8UC4;
+}
+
+// Copies one row into pad, extending r pixels on each side with reflect 101.
+// pad holds (cols + 2r) * cn bytes.
+static void pad_row(const uchar *restrict s, uchar *restrict pad, int cols,
+                    int cn, int r) {
+    for (int x = -r; x < cols + r; x++) {
+        const uchar *p = s + border_reflect_101(x, cols) * cn;
+        uchar       *q = pad + (x + r) * cn;
+        for (int c = 0; c < cn; c++) {
+            q[c] = p[c];
+        }
+    }
+}
+
+// Box horizontal pass: sliding window sum of ksize pixels per channel.
+// pad holds (width + ksize - 1) * cn bytes, out holds width * cn.
+static void box_hrow(const uchar *restrict pad, uint16_t *restrict out,
+                     int width, int cn, int ksize) {
+    for (int c = 0; c < cn; c++) {
+        unsigned sum = 0;
+        for (int i = 0; i < ksize; i++) {
+            sum += pad[i * cn + c];
+        }
+        out[c] = (uint16_t)sum;
+        for (int x = 1; x < width; x++) {
+            sum += pad[(x + ksize - 1) * cn + c];
+            sum -= pad[(x - 1) * cn + c];
+            out[x * cn + c] = (uint16_t)sum;
+        }
+    }
+}
+
+static void colsum_add(uint32_t *restrict sum, const uint16_t *restrict t,
+                       int n) {
+    for (int i = 0; i < n; i++) {
+        sum[i] += t[i];
+    }
+}
+
+static void colsum_sub(uint32_t *restrict sum, const uint16_t *restrict t,
+                       int n) {
+    for (int i = 0; i < n; i++) {
+        sum[i] -= t[i];
+    }
+}
+
+static void box_vrow(const uint32_t *restrict sum, uchar *restrict d, int n,
+                     uint32_t area) {
+    for (int i = 0; i < n; i++) {
+        d[i] = (uchar)((sum[i] + area / 2) / area);
+    }
+}
+
+void box_filter(struct Mat *dst, const struct Mat *src, int ksize) {
+    ASSERT(dst != src && dst->data != src->data);
+    ASSERT(is_u8_image_type(src));
+    ASSERT(mat_type(dst) == mat_type(src));
+    ASSERT(dst->rows == src->rows && dst->cols == src->cols);
+    ASSERT(ksize >= 1 && ksize <= 255 && (ksize & 1));
+    if (src->rows == 0 || src->cols == 0) {
+        return;
+    }
+
+    const int rows = src->rows;
+    const int n    = src->cols * (int)mat_channel_num(src);
+    const int cn   = (int)mat_channel_num(src);
+    const int r    = ksize / 2;
+
+    uint16_t *tmp = fast_malloc((size_t)rows * (size_t)n * sizeof(uint16_t));
+    uchar    *pad = fast_malloc((size_t)(src->cols + 2 * r) * (size_t)cn);
+    uint32_t *sum = fast_malloc((size_t)n * sizeof(uint32_t));
+    ASSERT(tmp != NULL && pad != NULL && sum != NULL);
+
+    for (int y = 0; y < rows; y++) {
+        pad_row(mat_row(src, y), pad, src->cols, cn, r);
+        box_hrow(pad, tmp + (size_t)y * (size_t)n, src->cols, cn, ksize);
+    }
+
+    for (int i = 0; i < n; i++) {
+        sum[i] = 0;
+    }
+    for (int i = -r; i <= r; i++) {
+        colsum_add(sum, tmp + (size_t)border_reflect_101(i, rows) * (size_t)n,
+                   n);
+    }
+    const uint32_t area = (uint32_t)(ksize * ksize);
+    for (int y = 0; y < rows; y++) {
+        box_vrow(sum, mat_row(dst, y), n, area);
+        colsum_add(
+            sum, tmp + (size_t)border_reflect_101(y + r + 1, rows) * (size_t)n,
+            n);
+        colsum_sub(
+            sum, tmp + (size_t)border_reflect_101(y - r, rows) * (size_t)n, n);
+    }
+
+    fast_free(sum);
+    fast_free(pad);
+    fast_free(tmp);
+}
