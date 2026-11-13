@@ -6,11 +6,19 @@
 # undefined symbols for calls the target must not make. Missing compilers are
 # skipped. Exits non-zero when any target fails.
 #
-# Usage: tools/check_cross.sh [build-root]     (default: <repo>/build-cross)
+# Usage: tools/check_cross.sh [--require-all] [build-root]
+#        (build-root default: <repo>/build-cross)
+#   --require-all  a missing compiler is a failure instead of a skip (CI).
+#                  IMPROC_REQUIRE_ALL=1 in the environment does the same.
 
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REQUIRE_ALL="${IMPROC_REQUIRE_ALL:-0}"
+if [ "${1:-}" = "--require-all" ]; then
+    REQUIRE_ALL=1
+    shift
+fi
 BUILD_ROOT="${1:-$ROOT/build-cross}"
 TOOLCHAINS="$ROOT/cmake/toolchains"
 
@@ -29,7 +37,9 @@ TARGETS=(
 
 # Symbols the core must never reference on a target without stdio or threads.
 FORBID_PTHREAD='pthread_.*'
-FORBID_STDIO='printf|fprintf|puts|fputs|fopen|exit'
+# GCC lowers literal printf/fprintf calls to puts/putchar/fwrite/fputc, so the
+# lowered forms and the stdio objects themselves are listed too.
+FORBID_STDIO='printf|fprintf|vprintf|vfprintf|snprintf|sprintf|puts|fputs|fputc|putchar|fwrite|fopen|exit|_Exit|stdout|stderr|_impure_ptr|__iob'
 FORBID_MALLOC='malloc|calloc|realloc|free'
 
 declare -a SUMMARY=()
@@ -54,8 +64,14 @@ run_target() {
     local build="$BUILD_ROOT/$name"
 
     if ! command -v "$compiler" >/dev/null 2>&1; then
-        echo "== $name: SKIP ($compiler not installed)"
-        SUMMARY+=("$name SKIP")
+        if [ "$REQUIRE_ALL" = "1" ]; then
+            echo "== $name: FAIL ($compiler not installed, --require-all)"
+            SUMMARY+=("$name FAIL(missing compiler)")
+            failed=1
+        else
+            echo "== $name: SKIP ($compiler not installed)"
+            SUMMARY+=("$name SKIP")
+        fi
         return
     fi
 

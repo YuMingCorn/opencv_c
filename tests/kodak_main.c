@@ -106,13 +106,31 @@ static int load_manifest(const char *path) {
             continue;
         }
         struct Entry       e;
+        char               image[64], op[128];
         unsigned long long hash = 0;
-        if (entry_count >= MAX_ENTRIES ||
-            sscanf(line, "%15s %47s %llx", e.image, e.op, &hash) != 3) {
+        if (sscanf(line, "%63s %127s %llx", image, op, &hash) != 3) {
             fprintf(stderr, "Bad manifest line: %s", line);
             fclose(f);
             return -1;
         }
+        if (strlen(image) >= sizeof e.image || strlen(op) >= sizeof e.op) {
+            fprintf(stderr,
+                    "Manifest name too long (image max %zu, op max %zu "
+                    "chars): %s",
+                    sizeof e.image - 1, sizeof e.op - 1, line);
+            fclose(f);
+            return -1;
+        }
+        if (entry_count >= MAX_ENTRIES) {
+            fprintf(stderr,
+                    "Manifest %s has more than %d entries; raise MAX_ENTRIES "
+                    "in kodak_main.c\n",
+                    path, MAX_ENTRIES);
+            fclose(f);
+            return -1;
+        }
+        memcpy(e.image, image, strlen(image) + 1);
+        memcpy(e.op, op, strlen(op) + 1);
         e.hash                 = (uint64_t)hash;
         e.used                 = 0;
         entries[entry_count++] = e;
@@ -138,7 +156,19 @@ static void record(const char *image, const char *op, uint64_t hash) {
     checked++;
     if (update_mode) {
         if (entry_count >= MAX_ENTRIES) {
-            fprintf(stderr, "Too many manifest entries\n");
+            fprintf(stderr,
+                    "More than %d manifest entries; raise MAX_ENTRIES in "
+                    "kodak_main.c\n",
+                    MAX_ENTRIES);
+            exit(1);
+        }
+        if (strlen(image) >= sizeof entries[0].image ||
+            strlen(op) >= sizeof entries[0].op) {
+            fprintf(stderr,
+                    "Name too long for the manifest (image max %zu, op max "
+                    "%zu chars): %s %s\n",
+                    sizeof entries[0].image - 1, sizeof entries[0].op - 1,
+                    image, op);
             exit(1);
         }
         struct Entry *e = &entries[entry_count++];
@@ -332,6 +362,13 @@ int main(int argc, char **argv) {
         dump_mat(name, "src", rgb);
         for (int k = 0; k < kodak_op_count; k++) {
             struct Mat *out = kodak_ops[k].run(rgb);
+            if (out == NULL) {
+                printf("FAIL     %s %s returned NULL\n", name,
+                       kodak_ops[k].name);
+                mismatches++;
+                checked++;
+                continue;
+            }
             record(name, kodak_ops[k].name, hash_mat(out));
             dump_mat(name, kodak_ops[k].name, out);
             free_mat(&out);

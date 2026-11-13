@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 
 project(opencv_c LANGUAGES C)
 
@@ -83,6 +83,12 @@ if(IMPROC_ENABLE_FLOAT)
 else()
     target_compile_definitions(improc_core PUBLIC IMPROC_HAS_FLOAT=0)
 endif()
+# Hosted code (mat_io.c, tests, demo) needs the default allocator.
+if(IMPROC_NO_MALLOC AND NOT IMPROC_CORE_ONLY)
+    message(FATAL_ERROR
+        "IMPROC_NO_MALLOC=ON requires IMPROC_CORE_ONLY=ON: the hosted image "
+        "IO, demo, benchmark and tests allocate with alloc_mat/free_mat.")
+endif()
 if(IMPROC_NO_STDIO)
     target_compile_definitions(improc_core PUBLIC IMPROC_NO_STDIO=1)
 endif()
@@ -103,6 +109,10 @@ find_package(Threads REQUIRED)
 add_library(improc STATIC core/mat_io.c)
 improc_warnings(improc)
 target_link_libraries(improc PUBLIC improc_core Threads::Threads)
+# stb_image / stb_image_write call pow() even when the float sources are off.
+if(UNIX)
+    target_link_libraries(improc PUBLIC m)
+endif()
 
 add_executable(demo main.c)
 improc_warnings(demo)

@@ -76,7 +76,7 @@ jobs:
             gcc-avr avr-libc qemu-user
 
       - name: Compile every target and scan symbols
-        run: tools/check_cross.sh
+        run: bash tools/check_cross.sh --require-all
 
       - name: Test on aarch64 under QEMU
         run: |
