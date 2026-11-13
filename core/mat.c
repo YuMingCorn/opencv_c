@@ -1,5 +1,7 @@
 #include "mat.h"
 
+#include <string.h>
+
 #include "utils.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -7,27 +9,56 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-struct Mat *alloc_mat(int rows, int cols, int type) {
+// Returns 1 and stores a*b in *out, or 0 on size_t overflow.
+static int mul_size(size_t a, size_t b, size_t *out) {
+    if (a != 0 && b > SIZE_MAX / a) {
+        return 0;
+    }
+    *out = a * b;
+    return 1;
+}
+
+static struct Mat *mat_create(int rows, int cols, int type) {
+    if (rows < 0 || cols < 0) {
+        return NULL;
+    }
+    type              = CV_MAT_TYPE(type);
+    size_t pixel_size = CV_PIXEL_SIZE(type);
+    size_t row_bytes  = 0;
+    size_t total      = 0;
+    if (!mul_size(pixel_size, (size_t)cols, &row_bytes) ||
+        !mul_size(row_bytes, (size_t)rows, &total)) {
+        return NULL;
+    }
+
     struct Mat *mat = (struct Mat *)malloc(sizeof(struct Mat));
-    ASSERT(mat != NULL);
-    type       = CV_MAT_TYPE(type);
-    mat->flags = (type & CV_MAT_TYPE_MASK) | MAGIC_VAL;
+    if (mat == NULL) {
+        return NULL;
+    }
+    mat->flags = (size_t)(type & CV_MAT_TYPE_MASK) | MAGIC_VAL;
     mat->dims  = 2;
     mat->rows  = rows;
     mat->cols  = cols;
+    mat->size  = (size_t *)fast_malloc(2 * sizeof(size_t));
+    mat->step  = (size_t *)fast_malloc(2 * sizeof(size_t));
+    mat->data  = (uchar *)fast_malloc(total);
+    if (mat->size == NULL || mat->step == NULL || mat->data == NULL) {
+        fast_free(mat->size);
+        fast_free(mat->step);
+        fast_free(mat->data);
+        free(mat);
+        return NULL;
+    }
+    mat->size[0] = (size_t)rows;
+    mat->size[1] = (size_t)cols;
+    mat->step[0] = row_bytes;
+    mat->step[1] = pixel_size;
+    return mat;
+}
 
-    mat->size = (size_t *)fast_malloc(2 * sizeof(size_t));
-    mat->step = (size_t *)fast_malloc(2 * sizeof(size_t));
-    assert(mat->size != NULL && mat->step != NULL);
-
-    mat->size[0] = rows;
-    mat->size[1] = cols;
-
-    size_t pixel_size = CV_PIXEL_SIZE(mat->flags);
-    mat->step[0]      = pixel_size * cols;
-    mat->step[1]      = pixel_size;
-    mat->data         = (uchar *)fast_malloc(pixel_size * rows * cols);
-
+struct Mat *alloc_mat(int rows, int cols, int type) {
+    struct Mat *mat = mat_create(rows, cols, type);
+    ASSERT(mat != NULL);
     return mat;
 }
 
@@ -62,47 +93,18 @@ void *mat_at(const struct Mat *mat, int row, int col) {
 
 struct Mat *alloc_mat_from_buffer(uchar *buffer, size_t buffer_size) {
     int width = 0, height = 0, channels = 0;
-    // It's may be will cause some problem
     uchar *data = (uchar *)stbi_load_from_memory(buffer, (int)buffer_size,
                                                  &width, &height, &channels, 0);
     if (!data) {
         fprintf(stderr, "Failed to load image from buffer\n");
-        free(data);
         return NULL;
     }
-    int type = 0;
-    if (channels == 1) {
-        type = CV_8UC1;
-    } else if (channels == 3) {
-        type = CV_8UC3;
-    } else {
-        fprintf(stderr, "Unsupported channel count: %d\n", channels);
+    struct Mat *mat = mat_create(height, width, CV_MAKETYPE(CV_8U, channels));
+    if (mat == NULL) {
         stbi_image_free(data);
         return NULL;
     }
-    struct Mat *mat = (struct Mat *)malloc(sizeof(struct Mat));
-    ASSERT(mat != NULL);
-    mat->rows  = height;
-    mat->cols  = width;
-    mat->flags = (type & CV_MAT_TYPE_MASK) | MAGIC_VAL;
-    mat->dims  = 2;
-
-    mat->size = (size_t *)fast_malloc(2 * sizeof(size_t));
-    mat->step = (size_t *)fast_malloc(2 * sizeof(size_t));
-
-    mat->size[0] = mat->rows;
-    mat->size[1] = mat->cols;
-
-    size_t pixel_size = (size_t)CV_PIXEL_SIZE(type);
-    mat->step[0]      = pixel_size * mat->cols;
-    mat->step[1]      = pixel_size;
-
-    // copy and free
-    mat->data       = (uchar *)fast_malloc(pixel_size * mat->rows * mat->cols);
-    int total_bytes = (int)pixel_size * mat->rows * mat->cols;
-    for (int i = 0; i < total_bytes; i++) {
-        mat->data[i] = data[i];
-    }
+    memcpy(mat->data, data, (size_t)height * mat->step[0]);
     stbi_image_free(data);
     return mat;
 }
@@ -111,47 +113,15 @@ struct Mat *alloc_mat_from_file(const char *filename) {
     int    width = 0, height = 0, channels = 0;
     uchar *data = stbi_load(filename, &width, &height, &channels, 0);
     if (data == NULL) {
-        printf("Error in loading the image\n");
+        fprintf(stderr, "Failed to load image %s\n", filename);
         return NULL;
-    } else {
-        printf("Image successfully loading from %s\n", filename);
     }
-
-    struct Mat *mat = (struct Mat *)malloc(sizeof(struct Mat));
-    ASSERT(mat != NULL);
-
-    int type = 0;
-    if (channels == 1) {
-        type = CV_8UC1;
-    } else if (channels == 3) {
-        type = CV_8UC3;
-    } else {
-        fprintf(stderr, "Unsupported channel count: %d\n", channels);
+    struct Mat *mat = mat_create(height, width, CV_MAKETYPE(CV_8U, channels));
+    if (mat == NULL) {
         stbi_image_free(data);
-        fast_free(mat);
         return NULL;
     }
-    mat->rows  = height;
-    mat->cols  = width;
-    mat->flags = (type & CV_MAT_TYPE_MASK) | MAGIC_VAL;
-    mat->dims  = 2;
-
-    mat->size = (size_t *)fast_malloc(2 * sizeof(size_t));
-    mat->step = (size_t *)fast_malloc(2 * sizeof(size_t));
-
-    mat->size[0] = mat->rows;
-    mat->size[1] = mat->cols;
-
-    size_t pixel_size = (size_t)CV_PIXEL_SIZE(type);
-    mat->step[0]      = pixel_size * mat->cols;
-    mat->step[1]      = pixel_size;
-
-    // copy and free
-    mat->data       = (uchar *)fast_malloc(pixel_size * mat->rows * mat->cols);
-    int total_bytes = (int)pixel_size * mat->rows * mat->cols;
-    for (int i = 0; i < total_bytes; i++) {
-        mat->data[i] = data[i];
-    }
+    memcpy(mat->data, data, (size_t)height * mat->step[0]);
     stbi_image_free(data);
     return mat;
 }
