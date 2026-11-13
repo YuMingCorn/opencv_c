@@ -60,3 +60,27 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+  cross-compile:
+    name: Cross-compile (Raspberry Pi, Cortex-M, AVR)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf \
+            gcc-arm-none-eabi libnewlib-arm-none-eabi \
+            gcc-avr avr-libc qemu-user
+
+      - name: Compile every target and scan symbols
+        run: tools/check_cross.sh
+
+      - name: Test on aarch64 under QEMU
+        run: |
+          cmake -S . -B build-aarch64 -G Ninja \
+            --toolchain cmake/toolchains/aarch64-linux-gnu.cmake -DIMPROC_WERROR=ON
+          cmake --build build-aarch64
+          ctest --test-dir build-aarch64 --output-on-failure
