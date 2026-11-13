@@ -8,6 +8,7 @@
 #include "pixel.h"
 #include "utils.h"
 #include "morph.h"
+#include "hist.h"
 // lane-append: includes
 
 #ifndef IMPROC_CORE_ONLY

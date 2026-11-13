@@ -62,6 +62,7 @@ set(IMPROC_CORE_SOURCES
     core/mat.c
     core/utils.c
     core/morph.c
+    core/hist.c
     # lane-append: core sources
 )
 
@@ -142,10 +143,12 @@ add_improc_test(test_geometry)
 add_improc_test(test_io)
 add_improc_test(test_hooks)
 add_improc_test(test_morph)
+add_improc_test(test_hist)
 # lane-append: tests
 
 add_kodak_test(phase1)
 add_kodak_test(morph)
+add_kodak_test(hist)
 # lane-append: kodak tests
 
 add_test(NAME demo_smoke COMMAND demo
