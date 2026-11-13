@@ -4,9 +4,16 @@
 #include "mat.h"
 #include "utils.h"
 
-enum ThresholdTypes { THRESH_BINARY };
+enum ThresholdTypes {
+    THRESH_BINARY,
+    THRESH_BINARY_INV,
+    THRESH_TRUNC,
+    THRESH_TOZERO,
+    THRESH_TOZERO_INV
+};
 
-void threshold(struct Mat *dst, struct Mat *src, double thresh, double maxval,
-               int type);
+// src and dst: CV_8UC1/3/4, same type and size. Every channel is thresholded.
+void threshold(struct Mat *dst, const struct Mat *src, uchar thresh,
+               uchar maxval, int type);
 
 #endif // PIXEL_H_
