@@ -24,12 +24,8 @@ static void run(const char *name, int code, struct Mat *dst, struct Mat *src) {
 int main(void) {
     struct Mat *src = alloc_mat_synthetic(IMAGE_SIZE, IMAGE_SIZE);
     struct Mat *dst = alloc_mat(IMAGE_SIZE, IMAGE_SIZE, CV_8UC1);
-    generate_table();
 
     run("scalar", COLOR_RGB2GRAY, dst, src);
-    run("lut", COLOR_RGB2GRAY_LUT, dst, src);
-    run("thread", COLOR_RGB2GRAY_THREAD, dst, src);
-    run("simd", COLOR_RGB2GRAY_INTRIN, dst, src);
 
     free_mat(&dst);
     free_mat(&src);
