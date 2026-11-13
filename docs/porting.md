@@ -6,7 +6,7 @@
 
 | 目標 | 內容 | 相依 |
 |---|---|---|
-| `improc_core` | 色彩、像素、濾波、幾何、Mat、工具函式 | 只用 libc 的 `memcpy`、`abort` 等；不含 stdio、pthread、檔案 IO |
+| `improc_core` | 色彩（含 HSV、YUV）、像素、濾波、形態學、直方圖、幾何（含 `INTER_AREA`）、`CV_32F` 轉換（`convert_to`）、Mat、工具函式 | 只用 libc 的 `memcpy`、`abort` 等；不含 stdio、pthread、檔案 IO |
 | `improc` | `improc_core` 加上圖檔讀寫（`mat_io.c`、stb） | pthread、stdio、檔案系統 |
 
 裸機目標（`CMAKE_SYSTEM_NAME` 為 `Generic`）預設只建 `improc_core`。
@@ -78,9 +78,12 @@ ESP32 請用 ESP-IDF 元件，把核心原始檔列進 `idf_component_register`�
 ```cmake
 idf_component_register(
     SRCS core/color.c core/pixel.c core/filter.c core/geometry.c
-         core/mat.c core/utils.c
+         core/mat.c core/utils.c core/morph.c core/hist.c
+         core/convert_f32.c
     INCLUDE_DIRS core)
 ```
+
+`convert_f32.c` 需要 `IMPROC_HAS_FLOAT=1`（ESP32 有單精度 FPU）。沒有 FPU 的目標請不要列入，並定義 `IMPROC_HAS_FLOAT=0`。
 
 ## 檢查腳本
 
@@ -88,31 +91,62 @@ idf_component_register(
 
 ## 大小與暫存記憶體
 
-大小為 `libimproc_core.a` 各目的檔 `.text`、`.data`、`.bss` 的總和（位元組，`MinSizeRel`）。ASSERT 會把 `__FILE__` 與運算式字串放進程式，所以原始碼路徑越長數字越大（差距可達數百位元組）；要縮小請開啟 `IMPROC_ASSERT_TERSE`。數字隨版本改變，整合階段會重新量測。
+大小為 `libimproc_core.a` 各目的檔 `.text`、`.data`、`.bss` 的總和（位元組，`MinSizeRel`），由合併後的完整程式樹（含形態學、直方圖、HSV／YUV、`INTER_AREA`；有 FPU 的目標另含 `convert_to`）執行 `bash tools/check_cross.sh` 取得。ASSERT 會把 `__FILE__` 與運算式字串放進程式，所以原始碼路徑越長數字越大（差距可達數百位元組）；要縮小請開啟 `IMPROC_ASSERT_TERSE`。這是整個函式庫的總和；連結時加 `--gc-sections` 會丟掉沒用到的函式與表格。
 
 | 目標 | 編譯器版本 | text | data | bss |
 |---|---|---|---|---|
-| aarch64 | GCC 15.2.0 | 13304 | 304 | 8 |
-| Cortex-M4F | GCC 14.2.1 | 8468 | 8 | 4 |
-| Cortex-M7 | GCC 14.2.1 | 8468 | 8 | 4 |
-| Cortex-M0+ | GCC 14.2.1 | 8542 | 8 | 4 |
-| Cortex-M0+（無 malloc） | GCC 14.2.1 | 8037 | 0 | 12 |
-| AVR ATmega328P（無 malloc） | GCC 14.3.0 | 11128 | 0 | 6 |
+| aarch64 | GCC 15.2.0 | 24332 | 496 | 8 |
+| Cortex-M4F | GCC 14.2.1 | 16648 | 8 | 4 |
+| Cortex-M7 | GCC 14.2.1 | 16642 | 8 | 4 |
+| Cortex-M0+ | GCC 14.2.1 | 16307 | 8 | 4 |
+| Cortex-M0+（無 malloc） | GCC 14.2.1 | 15702 | 0 | 12 |
+| AVR ATmega328P（無 malloc） | GCC 14.3.0 | 27472 | 0 | 6 |
 
-下表列出各運算向 `fast_malloc` 要求的暫存記憶體（`rows`、`cols` 為影像尺寸，`cn` 為通道數，`n = cols * cn`，`r = ksize / 2`）。
+armhf 本機沒有編譯器，未量測。Cortex-M0+ 與 AVR 關閉浮點，所以不含 `convert_to`。
+
+### 堆疊用量
+
+Cortex-M0+（`-fstack-usage`）最大的五個堆疊框：
+
+| 函式 | 位元組 |
+|---|---|
+| `convert_scale`（`pixel.c`） | 288 |
+| `resize`（`geometry.c`） | 248 |
+| `otsu_threshold_hist`（`hist.c`） | 208 |
+| `gaussian_blur`（`filter.c`） | 128 |
+| `morph`（`morph.c`） | 112 |
+
+### 暫存記憶體
+
+下表列出各運算向 `fast_malloc` 要求的暫存記憶體（`rows`、`cols` 為影像尺寸，`cn` 為通道數，`n = cols * cn`，`r = ksize / 2`，`ksize'` 為 `min(ksize, rows)`，也就是環形緩衝區的列數）。所有大小的計算都經過溢位檢查。
 
 | 運算 | 暫存位元組 |
 |---|---|
-| `threshold`、`mat_lut`、`convert_scale`、`cvt_color`、`flip` | 0 |
-| `box_filter` | `rows * n * 2 + n * 4 + (cols + 2r) * cn` |
-| `gaussian_blur` | `rows * n * 2 + (cols + 2r) * cn` |
-| `sobel` | `rows * cols * 2 + cols + 2` |
-| `resize` | `dst_cols * (2 * sizeof(int) + 2)` |
+| `threshold`、`mat_lut`、`convert_scale`、`cvt_color`、`flip`、`convert_to` | 0 |
+| `calc_hist`、`otsu_threshold_hist` | 0（直方圖由呼叫端提供） |
+| `box_filter` | `ksize' * n * 2 + n * 4 + (cols + 2r) * cn` |
+| `gaussian_blur` | `ksize' * n * 2 + (cols + 2r) * cn` |
+| `sobel` | `min(3, rows) * cols * 2 + cols + 2` |
+| `erode`、`dilate`、`morph_open`、`morph_close` | `n`（一列；`morph_open`／`morph_close` 另需呼叫端提供一張同尺寸的 `tmp`） |
+| `equalize_hist` | 1280（直方圖 1024 加查表 256） |
+| `otsu_threshold` | 1024 |
+| `resize`（`INTER_NEAREST`、`INTER_LINEAR`） | `dst_cols * (2 * sizeof(int) + 2)` |
+| `resize`（`INTER_AREA`） | `2 * dst_cols * cn * 4` |
 
-濾波類運算目前以整張影像大小的 16 位元暫存區運作，256 KB 的 RAM 放不下大影像。之後的工作會改成只保留 `ksize` 列。
+濾波類運算只保留 `ksize` 列的水平 pass 結果（環形緩衝區），所以暫存記憶體與影像高度無關，只與列寬和 `ksize` 有關。`INTER_AREA` 另外限制來源影像不超過 2^24 個像素，直方圖函式也一樣。
+
+### AVR 的 RAM
+
+HSV 轉換用兩張 `uint32_t[256]` 的除法表（共 2 KB）。AVR 沒有 `PROGMEM` 時，`const` 表格會被連結器放進 `.data`，要佔同樣大小的 RAM 與 flash 初值；上表的 `size` 把它們算在 `text`。ATmega328P 只有 2 KB RAM，用不起 HSV。不呼叫 HSV 轉換時，加 `--gc-sections` 會把表格丟掉。
+
+## 與 OpenCV 的差異
+
+Kodak 24 張影像、34 個運算與 OpenCV 4.10.0 的逐運算最大差異見 [kodak-results.md](kodak-results.md)。
 
 ## 已知限制
 
 - QEMU 只用來驗證結果正確，它的速度沒有參考價值。
 - ESP32 與 armhf 沒有在本機驗證。ESP32 只有文件，armhf 只在 CI 編譯。
 - `int` 只有 16 位元的目標（AVR）上，任何可能超過 32767 的中間值都必須使用 `int32_t`。
+- 測試 `test_io` 在 UBSan 下會報告 `stb_image_write.h` 內的左移溢位（`left shift of ... by 8 places cannot be represented in type 'int'`）。那是第三方檔案，維持原樣，屬於預期內的訊息；其餘測試在 ASan 與 UBSan 下沒有任何報告。
+- 暫存記憶體不足與大小溢位一律以 `ASSERT` 中止，見上文「暫存記憶體不足的處理方式」。
