@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1140" width="1280" height="1140" role="img" aria-labelledby="t d">
+<title id="t">demo 流程：輸入 → 轉成 RGB → 各項運算 → 13 張 PNG</title>
+<desc id="d">main.c 的執行流程：載入輸入、轉成 RGB、依序執行 13 項運算並各存成 PNG，以及 core/mat.c 內 stb 的圖檔讀寫路徑。</desc>
+<defs>
+<style>
+.t{font-family:"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC","Helvetica Neue",Arial,sans-serif;fill:#1F2328}
+.m{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;fill:#1F2328}
+.g{fill:#57606A}
+.r{fill:#CF222E}
+.b{font-weight:700}
+.api{fill:#DDF4FF;stroke:#0969DA;stroke-width:1.5}
+.data{fill:#DAFBE1;stroke:#1A7F37;stroke-width:1.5}
+.kern{fill:#FFF8C5;stroke:#9A6700;stroke-width:1.5}
+.exe{fill:#FBEFFF;stroke:#8250DF;stroke-width:1.5}
+.ext{fill:#F6F8FA;stroke:#6E7781;stroke-width:1.5}
+.err{fill:#FFEBE9;stroke:#CF222E;stroke-width:1.5}
+.panel{fill:none;stroke:#D0D7DE;stroke-width:1}
+.grid{fill:none;stroke:#D0D7DE;stroke-width:1}
+.hd{fill:#F6F8FA;stroke:#D0D7DE;stroke-width:1}
+.ar{fill:none;stroke:#57606A;stroke-width:1.5}
+.are{fill:none;stroke:#CF222E;stroke-width:1.5}
+.dash{stroke-dasharray:5 4}
+</style>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57606A"/></marker>
+<marker id="arr-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#CF222E"/></marker>
+</defs>
+<rect x="0" y="0" width="1280" height="1140" rx="8" fill="#FFFFFF" stroke="#D0D7DE"/>
+<text class="t b" x="32" y="44" font-size="22">demo 流程：輸入 → 轉成 RGB → 各項運算 → 13 張 PNG</text>
+<text class="t g" x="32" y="66" font-size="13">main.c；圖檔讀寫經由 core/mat.c 內的 stb</text>
+<rect class="exe" x="44" y="110" width="248" height="50" rx="6"/>
+<text class="m" x="168" y="131" font-size="11" text-anchor="middle">demo [input-image] [output-prefix]</text>
+<text class="t" x="168" y="148" font-size="12" text-anchor="middle">預設 prefix：out_</text>
+<rect class="api" x="44" y="200" width="248" height="50" rx="6"/>
+<text class="t" x="168" y="221" font-size="12" text-anchor="middle">有 input：</text>
+<text class="m" x="168" y="238" font-size="12" text-anchor="middle">alloc_mat_from_file(input)</text>
+<rect class="api" x="44" y="270" width="248" height="50" rx="6"/>
+<text class="t" x="168" y="291" font-size="12" text-anchor="middle">沒有 input：</text>
+<text class="m" x="168" y="308" font-size="12" text-anchor="middle">alloc_mat_synthetic(512, 512)</text>
+<rect class="data" x="44" y="360" width="248" height="50" rx="6"/>
+<text class="m b" x="168" y="381" font-size="13" text-anchor="middle">loaded</text>
+<text class="m" x="168" y="398" font-size="12" text-anchor="middle">mat_info(loaded)</text>
+<rect class="kern" x="44" y="450" width="248" height="120" rx="6"/>
+<text class="m b" x="168" y="474" font-size="13" text-anchor="middle">to_rgb(loaded)</text>
+<text class="t" x="56" y="498" font-size="12">1 通道：<tspan class="m" font-size="11.5">cvt_color COLOR_GRAY2RGB</tspan></text>
+<text class="t" x="56" y="518" font-size="12">3 通道：<tspan class="m" font-size="11.5">逐列複製</tspan></text>
+<text class="t" x="56" y="538" font-size="12">4 通道：<tspan class="m" font-size="11.5">cvt_color COLOR_RGBA2RGB</tspan></text>
+<text class="t" x="56" y="558" font-size="12">其他：<tspan class="m" font-size="11.5">回傳 NULL</tspan></text>
+<rect class="data" x="44" y="610" width="248" height="50" rx="6"/>
+<text class="m b" x="168" y="631" font-size="12" text-anchor="middle">src：CV_8UC3（RGB）</text>
+<text class="m" x="168" y="648" font-size="12" text-anchor="middle">free_mat(&amp;loaded)</text>
+<rect class="err" x="44" y="700" width="248" height="60" rx="6"/>
+<text class="t" x="168" y="725.5" font-size="12" text-anchor="middle">loaded == NULL 或 src == NULL</text>
+<text class="t" x="168" y="743.5" font-size="12" text-anchor="middle">印訊息到 stderr，return 1</text>
+<path class="ar" d="M168 160 V198" marker-end="url(#arr)"/>
+<path class="ar" d="M168 180 H302 V295 H294" marker-end="url(#arr)"/>
+<path class="ar" d="M168 320 V358" marker-end="url(#arr)"/>
+<path class="ar" d="M44 225 H40 V340 H168"/>
+<path class="ar" d="M168 410 V448" marker-end="url(#arr)"/>
+<path class="ar" d="M168 570 V608" marker-end="url(#arr)"/>
+<path class="are dash" d="M44 385 H36 V730 H42" marker-end="url(#arr-red)"/>
+<path class="are dash" d="M44 510 H36"/>
+<path class="ar" d="M292 635 H330"/>
+<text class="t g b" x="388" y="106" font-size="12" text-anchor="middle">輸入</text>
+<text class="t g b" x="446" y="106" font-size="12">呼叫</text>
+<text class="t g b" x="836" y="106" font-size="12">結果 Mat</text>
+<text class="t g b" x="1034" y="106" font-size="12">save() → mat_write()</text>
+<path class="ar" d="M330 139 V835"/>
+<path class="ar" d="M330 139 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="116" width="72" height="46" rx="6"/>
+<text class="m" x="388" y="143.5" font-size="12" text-anchor="middle">src</text>
+<path class="ar" d="M424 139 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="116" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="144" font-size="13" text-anchor="middle">cvt_color(gray, src, COLOR_RGB2GRAY)</text>
+<path class="ar" d="M812 139 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="116" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="144" font-size="12" text-anchor="middle">gray：CV_8UC1</text>
+<path class="ar" d="M1010 139 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="116" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="143" font-size="11.5" text-anchor="middle">out_gray.png</text>
+<text class="t g" x="322" y="143" font-size="11" text-anchor="end">1</text>
+<path class="ar" d="M330 197 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="174" width="72" height="46" rx="6"/>
+<text class="m" x="388" y="201.5" font-size="12" text-anchor="middle">src</text>
+<path class="ar" d="M424 197 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="174" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="202" font-size="13" text-anchor="middle">cvt_color(bgr, src, COLOR_RGB2BGR)</text>
+<path class="ar" d="M812 197 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="174" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="202" font-size="12" text-anchor="middle">bgr：CV_8UC3</text>
+<path class="ar" d="M1010 197 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="174" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="201" font-size="11.5" text-anchor="middle">out_bgr.png</text>
+<text class="t g" x="322" y="201" font-size="11" text-anchor="end">2</text>
+<path class="ar" d="M330 255 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="232" width="72" height="46" rx="6"/>
+<text class="m" x="388" y="259.5" font-size="12" text-anchor="middle">src</text>
+<path class="ar" d="M424 255 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="232" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="260" font-size="13" text-anchor="middle">cvt_color(rgba, src, COLOR_RGB2RGBA)</text>
+<path class="ar" d="M812 255 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="232" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="260" font-size="12" text-anchor="middle">rgba：CV_8UC4</text>
+<path class="ar" d="M1010 255 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="232" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="259" font-size="11.5" text-anchor="middle">out_rgba.png</text>
+<text class="t g" x="322" y="259" font-size="11" text-anchor="end">3</text>
+<path class="ar" d="M330 313 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="290" width="72" height="46" rx="6"/>
+<text class="m" x="388" y="317.5" font-size="12" text-anchor="middle">src</text>
+<path class="ar" d="M424 313 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="290" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="318" font-size="13" text-anchor="middle">threshold(out, src, 128, 255, THRESH_BINARY)</text>
+<path class="ar" d="M812 313 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="290" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="318" font-size="12" text-anchor="middle">out：CV_8UC3</text>
+<path class="ar" d="M1010 313 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="290" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="317" font-size="11.5" text-anchor="middle">out_thresh.png</text>
+<text class="t g" x="322" y="317" font-size="11" text-anchor="end">4</text>
+<path class="ar" d="M330 371 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="348" width="72" height="46" rx="6"/>
+<text class="m" x="388" y="375.5" font-size="12" text-anchor="middle">src</text>
+<path class="ar" d="M424 371 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="348" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="367" font-size="12" text-anchor="middle">mat_lut(out, src, invert)</text>
+<text class="m" x="629" y="385" font-size="12" text-anchor="middle">invert[i] = 255 − i</text>
+<path class="ar" d="M812 371 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="348" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="376" font-size="12" text-anchor="middle">out</text>
+<path class="ar" d="M1010 371 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="348" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="375" font-size="11.5" text-anchor="middle">out_invert.png</text>
+<text class="t g" x="322" y="375" font-size="11" text-anchor="end">5</text>
+<path class="ar" d="M330 429 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="406" width="72" height="46" rx="6"/>
+<text class="m" x="388" y="433.5" font-size="12" text-anchor="middle">src</text>
+<path class="ar" d="M424 429 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="406" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="425" font-size="12" text-anchor="middle">convert_scale(out, src, 384, 10)</text>
+<text class="t" x="629" y="443" font-size="11" text-anchor="middle">約 ×1.5 再 +10</text>
+<path class="ar" d="M812 429 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="406" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="434" font-size="12" text-anchor="middle">out</text>
+<path class="ar" d="M1010 429 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="406" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="433" font-size="11.5" text-anchor="middle">out_bright.png</text>
+<text class="t g" x="322" y="433" font-size="11" text-anchor="end">6</text>
+<path class="ar" d="M330 487 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="464" width="72" height="46" rx="6"/>
+<text class="m" x="388" y="491.5" font-size="12" text-anchor="middle">src</text>
+<path class="ar" d="M424 487 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="464" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="492" font-size="13" text-anchor="middle">box_filter(out, src, 5)</text>
+<path class="ar" d="M812 487 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="464" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="492" font-size="12" text-anchor="middle">out</text>
+<path class="ar" d="M1010 487 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="464" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="491" font-size="11.5" text-anchor="middle">out_box.png</text>
+<text class="t g" x="322" y="491" font-size="11" text-anchor="end">7</text>
+<path class="ar" d="M330 545 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="522" width="72" height="46" rx="6"/>
+<text class="m" x="388" y="549.5" font-size="12" text-anchor="middle">src</text>
+<path class="ar" d="M424 545 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="522" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="550" font-size="13" text-anchor="middle">gaussian_blur(out, src, 7)</text>
+<path class="ar" d="M812 545 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="522" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="550" font-size="12" text-anchor="middle">out</text>
+<path class="ar" d="M1010 545 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="522" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="549" font-size="11.5" text-anchor="middle">out_gauss.png</text>
+<text class="t g" x="322" y="549" font-size="11" text-anchor="end">8</text>
+<path class="ar" d="M330 603 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="580" width="72" height="46" rx="6"/>
+<text class="m" x="388" y="607.5" font-size="12" text-anchor="middle">src</text>
+<path class="ar" d="M424 603 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="580" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="608" font-size="13" text-anchor="middle">flip(out, src, FLIP_HORIZONTAL)</text>
+<path class="ar" d="M812 603 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="580" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="608" font-size="12" text-anchor="middle">out</text>
+<path class="ar" d="M1010 603 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="580" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="607" font-size="11.5" text-anchor="middle">out_flip_h.png</text>
+<text class="t g" x="322" y="607" font-size="11" text-anchor="end">9</text>
+<path class="ar" d="M330 661 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="638" width="72" height="46" rx="6" stroke-width="2.5"/>
+<text class="m" x="388" y="657" font-size="12" text-anchor="middle">gray</text>
+<text class="t g" x="388" y="674" font-size="11" text-anchor="middle">來自第 1 列</text>
+<path class="ar" d="M424 661 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="638" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="657" font-size="12" text-anchor="middle">sobel(grad, gray, 1, 0)</text>
+<text class="m" x="629" y="675" font-size="12" text-anchor="middle">convert_scale_abs(edge, grad, 256, 0)</text>
+<path class="ar" d="M812 661 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="638" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="657" font-size="12" text-anchor="middle">grad：CV_16SC1</text>
+<text class="m" x="923" y="675" font-size="12" text-anchor="middle">edge：CV_8UC1</text>
+<path class="ar" d="M1010 661 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="638" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="665" font-size="11.5" text-anchor="middle">out_sobel_x.png</text>
+<text class="t g" x="322" y="665" font-size="11" text-anchor="end">10</text>
+<path class="ar" d="M330 719 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="696" width="72" height="46" rx="6" stroke-width="2.5"/>
+<text class="m" x="388" y="715" font-size="12" text-anchor="middle">gray</text>
+<text class="t g" x="388" y="732" font-size="11" text-anchor="middle">來自第 1 列</text>
+<path class="ar" d="M424 719 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="696" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="715" font-size="12" text-anchor="middle">sobel(grad, gray, 0, 1)</text>
+<text class="m" x="629" y="733" font-size="12" text-anchor="middle">convert_scale_abs(edge, grad, 256, 0)</text>
+<path class="ar" d="M812 719 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="696" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="715" font-size="12" text-anchor="middle">grad</text>
+<text class="m" x="923" y="733" font-size="12" text-anchor="middle">edge</text>
+<path class="ar" d="M1010 719 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="696" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="723" font-size="11.5" text-anchor="middle">out_sobel_y.png</text>
+<text class="t g" x="322" y="723" font-size="11" text-anchor="end">11</text>
+<path class="ar" d="M330 777 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="754" width="72" height="46" rx="6"/>
+<text class="m" x="388" y="781.5" font-size="12" text-anchor="middle">src</text>
+<path class="ar" d="M424 777 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="754" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="782" font-size="13" text-anchor="middle">resize(half, src, INTER_LINEAR)</text>
+<path class="ar" d="M812 777 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="754" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="773" font-size="12" text-anchor="middle">half：CV_8UC3</text>
+<text class="t" x="923" y="791" font-size="11" text-anchor="middle">rows/2 × cols/2（至少 1）</text>
+<path class="ar" d="M1010 777 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="754" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="781" font-size="11.5" text-anchor="middle">out_half.png</text>
+<text class="t g" x="322" y="781" font-size="11" text-anchor="end">12</text>
+<path class="ar" d="M330 835 H350" marker-end="url(#arr)"/>
+<rect class="data" x="352" y="812" width="72" height="46" rx="6"/>
+<text class="m" x="388" y="839.5" font-size="12" text-anchor="middle">src</text>
+<path class="ar" d="M424 835 H444" marker-end="url(#arr)"/>
+<rect class="api" x="446" y="812" width="366" height="46" rx="6"/>
+<text class="m" x="629" y="840" font-size="13" text-anchor="middle">resize(twice, src, INTER_NEAREST)</text>
+<path class="ar" d="M812 835 H834" marker-end="url(#arr)"/>
+<rect class="data" x="836" y="812" width="174" height="46" rx="6"/>
+<text class="m" x="923" y="831" font-size="12" text-anchor="middle">twice：CV_8UC3</text>
+<text class="m" x="923" y="849" font-size="12" text-anchor="middle">2×rows × 2×cols</text>
+<path class="ar" d="M1010 835 H1032" marker-end="url(#arr)"/>
+<rect class="ext" x="1034" y="812" width="166" height="46" rx="6"/>
+<text class="m" x="1117" y="839" font-size="11.5" text-anchor="middle">out_double_nearest.png</text>
+<text class="t g" x="322" y="839" font-size="11" text-anchor="end">13</text>
+<path d="M1206 292 H1212 V624 H1206" fill="none" stroke="#8C959F" stroke-width="1.5"/>
+<text class="t g" font-size="12" text-anchor="middle" transform="translate(1228 458) rotate(-90)">第 4–9 列</text>
+<text class="t g" font-size="12" text-anchor="middle" transform="translate(1244 458) rotate(-90)">共用同一個 out</text>
+<path d="M1206 640 H1212 V740 H1206" fill="none" stroke="#8C959F" stroke-width="1.5"/>
+<text class="t g" font-size="12" text-anchor="middle" transform="translate(1228 690) rotate(-90)">第 10–11 列</text>
+<text class="t g" font-size="12" text-anchor="middle" transform="translate(1244 690) rotate(-90)">grad、edge 共用</text>
+<text class="t g" x="320" y="886" font-size="12">save() 寫檔失敗只累計 failures；最後 free_mat 9 個 Mat，return failures == 0 ? 0 : 1</text>
+<rect class="panel" x="32" y="910" width="1216" height="198" rx="8"/>
+<text class="t b" x="44" y="932" font-size="15">圖檔 I/O 路徑（core/mat.c）</text>
+<rect class="ext" x="44" y="946" width="100" height="46" rx="6"/>
+<text class="m" x="94" y="973.5" font-size="12" text-anchor="middle">PNG / JPG 檔</text>
+<path class="ar" d="M144 969 H160" marker-end="url(#arr)"/>
+<rect class="ext" x="162" y="946" width="318" height="46" rx="6"/>
+<text class="m" x="321" y="973.5" font-size="12" text-anchor="middle">stbi_load(filename, &amp;w, &amp;h, &amp;channels, 0)</text>
+<path class="ar" d="M480 969 H496" marker-end="url(#arr)"/>
+<rect class="kern" x="498" y="946" width="266" height="46" rx="6"/>
+<text class="m" x="631" y="973.5" font-size="12" text-anchor="middle">mat_from_stb(data, w, h, channels)</text>
+<path class="ar" d="M764 969 H780" marker-end="url(#arr)"/>
+<rect class="kern" x="782" y="946" width="326" height="46" rx="6"/>
+<text class="m" x="945" y="965" font-size="11" text-anchor="middle">mat_create(h, w, CV_MAKETYPE(CV_8U, channels))</text>
+<text class="m" x="945" y="982" font-size="11" text-anchor="middle">memcpy；stbi_image_free(data)</text>
+<path class="ar" d="M1108 969 H1124" marker-end="url(#arr)"/>
+<rect class="data" x="1126" y="946" width="108" height="46" rx="6"/>
+<text class="m" x="1180" y="973.5" font-size="12" text-anchor="middle">struct Mat *</text>
+<text class="t g" x="44" y="1012" font-size="12">讀取（alloc_mat_from_file）：失敗一律回傳 NULL 並印訊息；alloc_mat_from_buffer 走 stbi_load_from_memory（buffer_size 不可超過 INT_MAX）（mat.c:98-133）</text>
+<rect class="data" x="44" y="1030" width="108" height="46" rx="6"/>
+<text class="m" x="98" y="1057.5" font-size="12" text-anchor="middle">struct Mat *</text>
+<path class="ar" d="M152 1053 H168" marker-end="url(#arr)"/>
+<rect class="api" x="170" y="1030" width="230" height="46" rx="6"/>
+<text class="m" x="285" y="1049" font-size="12" text-anchor="middle">mat_write(filename, mat)</text>
+<text class="m" x="285" y="1066" font-size="12" text-anchor="middle">ASSERT depth == CV_8U</text>
+<path class="ar" d="M400 1053 H416" marker-end="url(#arr)"/>
+<rect class="kern" x="418" y="1030" width="220" height="46" rx="6"/>
+<text class="m" x="528" y="1057.5" font-size="12" text-anchor="middle">has_extension（不分大小寫）</text>
+<path class="ar" d="M638 1053 H654" marker-end="url(#arr)"/>
+<rect class="ext" x="656" y="1030" width="340" height="46" rx="6"/>
+<text class="m" x="826" y="1049" font-size="12" text-anchor="middle">"png" → stbi_write_png(..., step[0])</text>
+<text class="m" x="826" y="1066" font-size="12" text-anchor="middle">"jpg" / "jpeg" → stbi_write_jpg(..., 100)</text>
+<path class="ar" d="M996 1053 H1012" marker-end="url(#arr)"/>
+<rect class="ext" x="1014" y="1030" width="150" height="46" rx="6"/>
+<text class="t" x="1089" y="1057.5" font-size="12" text-anchor="middle">檔案；成功回傳 0</text>
+<text class="t g" x="44" y="1098" font-size="12">寫入（mat_write）：其他副檔名或 stb 寫檔失敗 → 回傳 -1（mat.c:136-186）</text>
+</svg>
