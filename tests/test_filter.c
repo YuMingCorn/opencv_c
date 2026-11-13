@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "filter.h"
+#include "test_alloc_util.h"
 #include "test_mat_util.h"
 
 // Same definition as filter.c, kept separate so the reference is independent.
@@ -303,6 +304,241 @@ static void test_sobel_width_sweep(void) {
     }
 }
 
+// Full-frame implementations from before the row-streaming refactor. They
+// stay here as the byte-exact reference for the ring-buffer versions.
+static void old_pad_row(const uchar *s, uchar *pad, int cols, int cn, int r) {
+    for (int x = -r; x < cols + r; x++) {
+        const uchar *p = s + reflect101(x, cols) * cn;
+        for (int c = 0; c < cn; c++) {
+            pad[(x + r) * cn + c] = p[c];
+        }
+    }
+}
+
+static void old_box(struct Mat *dst, const struct Mat *src, int ksize) {
+    const int rows = src->rows, cols = src->cols;
+    const int cn = (int)mat_channel_num(src), n = cols * cn, r = ksize / 2;
+    uint16_t *tmp = malloc((size_t)rows * (size_t)n * sizeof(uint16_t));
+    uchar    *pad = malloc((size_t)(cols + 2 * r) * (size_t)cn);
+    for (int y = 0; y < rows; y++) {
+        old_pad_row(mat_row(src, y), pad, cols, cn, r);
+        for (int c = 0; c < cn; c++) {
+            for (int x = 0; x < cols; x++) {
+                unsigned sum = 0;
+                for (int i = 0; i < ksize; i++) {
+                    sum += pad[(x + i) * cn + c];
+                }
+                tmp[(size_t)y * (size_t)n + (size_t)(x * cn + c)] =
+                    (uint16_t)sum;
+            }
+        }
+    }
+    const uint32_t area = (uint32_t)ksize * (uint32_t)ksize;
+    for (int y = 0; y < rows; y++) {
+        for (int i = 0; i < n; i++) {
+            uint32_t sum = 0;
+            for (int k = -r; k <= r; k++) {
+                sum += tmp[(size_t)reflect101(y + k, rows) * (size_t)n +
+                           (size_t)i];
+            }
+            mat_row(dst, y)[i] = (uchar)((sum + area / 2) / area);
+        }
+    }
+    free(pad);
+    free(tmp);
+}
+
+static void old_gauss(struct Mat *dst, const struct Mat *src, int ksize) {
+    static const int w_tab[4][7] = {{256, 0, 0, 0, 0, 0, 0},
+                                    {64, 128, 64, 0, 0, 0, 0},
+                                    {16, 64, 96, 64, 16, 0, 0},
+                                    {8, 28, 56, 72, 56, 28, 8}};
+    const int        rows = src->rows, cols = src->cols;
+    const int  cn = (int)mat_channel_num(src), n = cols * cn, r = ksize / 2;
+    const int *w   = w_tab[r];
+    uint16_t  *tmp = malloc((size_t)rows * (size_t)n * sizeof(uint16_t));
+    uchar     *pad = malloc((size_t)(cols + 2 * r) * (size_t)cn);
+    for (int y = 0; y < rows; y++) {
+        old_pad_row(mat_row(src, y), pad, cols, cn, r);
+        for (int i = 0; i < n; i++) {
+            unsigned acc = 0;
+            for (int k = 0; k < ksize; k++) {
+                acc += (unsigned)w[k] * pad[i + k * cn];
+            }
+            tmp[(size_t)y * (size_t)n + (size_t)i] = (uint16_t)acc;
+        }
+    }
+    for (int y = 0; y < rows; y++) {
+        for (int i = 0; i < n; i++) {
+            uint32_t acc = 0;
+            for (int k = 0; k < ksize; k++) {
+                acc += (uint32_t)w[k] *
+                       tmp[(size_t)reflect101(y + k - r, rows) * (size_t)n +
+                           (size_t)i];
+            }
+            mat_row(dst, y)[i] = (uchar)((acc + 32768u) >> 16);
+        }
+    }
+    free(pad);
+    free(tmp);
+}
+
+static void old_sobel(struct Mat *dst, const struct Mat *src, int dx) {
+    static const int diff[3] = {-1, 0, 1}, smooth[3] = {1, 2, 1};
+    const int       *wh = dx ? diff : smooth, *wv = dx ? smooth : diff;
+    const int        rows = src->rows, cols = src->cols;
+    int16_t *tmp = malloc((size_t)rows * (size_t)cols * sizeof(int16_t));
+    uchar   *pad = malloc((size_t)cols + 2);
+    for (int y = 0; y < rows; y++) {
+        old_pad_row(mat_row(src, y), pad, cols, 1, 1);
+        for (int x = 0; x < cols; x++) {
+            tmp[(size_t)y * (size_t)cols + (size_t)x] =
+                (int16_t)(wh[0] * pad[x] + wh[1] * pad[x + 1] +
+                          wh[2] * pad[x + 2]);
+        }
+    }
+    for (int y = 0; y < rows; y++) {
+        const int16_t *t0 =
+            tmp + (size_t)reflect101(y - 1, rows) * (size_t)cols;
+        const int16_t *t1 = tmp + (size_t)y * (size_t)cols;
+        const int16_t *t2 =
+            tmp + (size_t)reflect101(y + 1, rows) * (size_t)cols;
+        for (int x = 0; x < cols; x++) {
+            ((int16_t *)mat_row(dst, y))[x] =
+                (int16_t)(wv[0] * t0[x] + wv[1] * t1[x] + wv[2] * t2[x]);
+        }
+    }
+    free(pad);
+    free(tmp);
+}
+
+static void box_vs_old(int rows, int cols, int ksize, unsigned seed) {
+    struct Mat *src = alloc_mat(rows, cols, CV_8UC3);
+    struct Mat *dst = alloc_mat(rows, cols, CV_8UC3);
+    struct Mat *ref = alloc_mat(rows, cols, CV_8UC3);
+    fill_pattern(src, seed);
+    box_filter(dst, src, ksize);
+    if (cols > 0) {
+        old_box(ref, src, ksize);
+    }
+    CHECK_MAT_BYTES(dst, ref->data);
+    free_mat(&src);
+    free_mat(&dst);
+    free_mat(&ref);
+}
+
+static void test_box_stream_small_ksize_sweep(void) {
+    for (int ksize = 1; ksize <= 15; ksize += 2) {
+        for (int rows = 1; rows <= 2 * ksize + 2; rows++) {
+            for (int w = 0; w <= 65; w++) {
+                box_vs_old(rows, w, ksize, (unsigned)(rows * 7 + w));
+            }
+        }
+    }
+}
+
+static void test_box_stream_every_ksize(void) {
+    const int widths[] = {0, 1, 5};
+    for (int ksize = 1; ksize <= 255; ksize += 2) {
+        const int rows_set[] = {1,     2,         ksize > 1 ? ksize - 1 : 1,
+                                ksize, ksize + 1, 2 * ksize + 2};
+        for (int i = 0; i < 5; i++) {
+            for (int j = 0; j < 3; j++) {
+                box_vs_old(rows_set[i], widths[j], ksize,
+                           (unsigned)(ksize + i * 13 + j));
+            }
+        }
+    }
+}
+
+static void test_gauss_stream_sweep(void) {
+    for (int ksize = 1; ksize <= 7; ksize += 2) {
+        for (int rows = 1; rows <= 2 * ksize + 2; rows++) {
+            for (int w = 0; w <= 65; w++) {
+                struct Mat *src = alloc_mat(rows, w, CV_8UC3);
+                struct Mat *dst = alloc_mat(rows, w, CV_8UC3);
+                struct Mat *ref = alloc_mat(rows, w, CV_8UC3);
+                fill_pattern(src, (unsigned)(rows * 5 + w));
+                gaussian_blur(dst, src, ksize);
+                if (w > 0) {
+                    old_gauss(ref, src, ksize);
+                }
+                CHECK_MAT_BYTES(dst, ref->data);
+                free_mat(&src);
+                free_mat(&dst);
+                free_mat(&ref);
+            }
+        }
+    }
+}
+
+static void test_sobel_stream_sweep(void) {
+    for (int dir = 0; dir < 2; dir++) {
+        for (int rows = 1; rows <= 8; rows++) {
+            for (int w = 0; w <= 65; w++) {
+                struct Mat *src = alloc_mat(rows, w, CV_8UC1);
+                struct Mat *dst = alloc_mat(rows, w, CV_16SC1);
+                struct Mat *ref = alloc_mat(rows, w, CV_16SC1);
+                fill_pattern(src, (unsigned)(rows * 3 + w));
+                sobel(dst, src, dir == 0, dir == 1);
+                if (w > 0) {
+                    old_sobel(ref, src, dir == 0);
+                }
+                CHECK_MAT_BYTES(dst, ref->data);
+                free_mat(&src);
+                free_mat(&dst);
+                free_mat(&ref);
+            }
+        }
+    }
+}
+
+// Peak scratch must stay within the documented table plus 64 bytes of
+// alignment slack per allocation.
+static void check_peak(size_t table, long allocs) {
+    CHECK_EQ_INT(alloc_stats.allocs, allocs);
+    CHECK_EQ_INT(alloc_stats.allocs, alloc_stats.frees);
+    CHECK_EQ_INT(alloc_stats.current, 0);
+    CHECK(alloc_stats.peak <= table + 64u * (size_t)allocs);
+}
+
+static void test_scratch_peak(void) {
+    const int   rows = 40, cols = 64;
+    struct Mat *src = alloc_mat(rows, cols, CV_8UC3);
+    struct Mat *dst = alloc_mat(rows, cols, CV_8UC3);
+    fill_pattern(src, 77);
+    const size_t n = (size_t)cols * 3;
+    for (int ksize = 3; ksize <= 255; ksize += 2) {
+        const size_t slots = (size_t)(ksize < rows ? ksize : rows);
+        const size_t table =
+            slots * n * 2 + n * 4 + (size_t)(cols + ksize - 1) * 3;
+        alloc_counter_start();
+        box_filter(dst, src, ksize);
+        alloc_counter_stop();
+        check_peak(table, 3);
+    }
+    for (int ksize = 3; ksize <= 7; ksize += 2) {
+        const size_t table =
+            (size_t)ksize * n * 2 + (size_t)(cols + ksize - 1) * 3;
+        alloc_counter_start();
+        gaussian_blur(dst, src, ksize);
+        alloc_counter_stop();
+        check_peak(table, 2);
+    }
+    free_mat(&src);
+    free_mat(&dst);
+
+    src = alloc_mat(rows, cols, CV_8UC1);
+    dst = alloc_mat(rows, cols, CV_16SC1);
+    fill_pattern(src, 78);
+    alloc_counter_start();
+    sobel(dst, src, 1, 0);
+    alloc_counter_stop();
+    check_peak(3 * (size_t)cols * 2 + (size_t)cols + 2, 2);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
 int main(void) {
     RUN_TEST(test_box_impulse);
     RUN_TEST(test_box_ramp);
@@ -326,5 +562,10 @@ int main(void) {
     RUN_TEST(test_sobel_max_range);
     RUN_TEST(test_sobel_two_wide);
     RUN_TEST(test_sobel_width_sweep);
+    RUN_TEST(test_box_stream_small_ksize_sweep);
+    RUN_TEST(test_box_stream_every_ksize);
+    RUN_TEST(test_gauss_stream_sweep);
+    RUN_TEST(test_sobel_stream_sweep);
+    RUN_TEST(test_scratch_peak);
     return test_finish();
 }
