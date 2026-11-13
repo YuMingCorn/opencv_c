@@ -35,12 +35,32 @@ static struct Mat *op_gray_src(const struct Mat *rgb) {
     return gray;
 }
 
-// lane-b-open-close-ops
+static struct Mat *open_close_rgb(const struct Mat *rgb, int ksize, int is_close) {
+    struct Mat *out = alloc_mat(rgb->rows, rgb->cols, CV_8UC3);
+    struct Mat *tmp = alloc_mat(rgb->rows, rgb->cols, CV_8UC3);
+    if (is_close) {
+        morph_close(out, tmp, rgb, ksize);
+    } else {
+        morph_open(out, tmp, rgb, ksize);
+    }
+    free_mat(&tmp);
+    return out;
+}
+
+static struct Mat *op_open5(const struct Mat *rgb) {
+    return open_close_rgb(rgb, 5, 0);
+}
+
+static struct Mat *op_close5(const struct Mat *rgb) {
+    return open_close_rgb(rgb, 5, 1);
+}
+
 
 const struct KodakOp kodak_ops[] = {
     {"erode3", op_erode3},
     {"dilate3", op_dilate3},
-    // lane-b-open-close-table
+    {"open5", op_open5},
+    {"close5", op_close5},
     {"gray_src", op_gray_src},
     {"gray_erode7", op_gray_erode7},
 };

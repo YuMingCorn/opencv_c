@@ -297,7 +297,143 @@ static void test_scratch_is_one_row_and_balanced(void) {
     free_mat(&src);
 }
 
-// lane-b-open-close-tests
+// ---- Opening and closing ---------------------------------------------------
+
+static void open_close_run(int is_close, struct Mat *dst, struct Mat *src,
+                           int ksize) {
+    struct Mat *tmp = alloc_mat(src->rows, src->cols, (int)mat_type(src));
+    if (is_close) {
+        morph_close(dst, tmp, src, ksize);
+    } else {
+        morph_open(dst, tmp, src, ksize);
+    }
+    free_mat(&tmp);
+}
+
+static void test_open3_block_survives_lone_pixel_removed(void) {
+    uchar in[5 * 6];
+    memset(in, 0, sizeof in);
+    for (int y = 1; y <= 3; y++) {
+        for (int x = 1; x <= 3; x++) {
+            in[y * 6 + x] = 255;
+        }
+    }
+    in[2 * 6 + 5] = 255; // lone pixel
+    uchar out[5 * 6];
+    memcpy(out, in, sizeof out);
+    out[2 * 6 + 5] = 0;
+    struct Mat *src = mat_from_bytes(5, 6, CV_8UC1, in);
+    struct Mat *dst = alloc_mat(5, 6, CV_8UC1);
+    open_close_run(0, dst, src, 3);
+    CHECK_MAT_BYTES(dst, out);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
+static void test_close3_fills_holes(void) {
+    uchar in[4 * 5];
+    memset(in, 255, sizeof in);
+    in[1 * 5 + 2] = 0;
+    in[3 * 5 + 0] = 0;
+    uchar out[4 * 5];
+    memset(out, 255, sizeof out);
+    struct Mat *src = mat_from_bytes(4, 5, CV_8UC1, in);
+    struct Mat *dst = alloc_mat(4, 5, CV_8UC1);
+    open_close_run(1, dst, src, 3);
+    CHECK_MAT_BYTES(dst, out);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
+static void test_open_close_match_naive_composition(void) {
+    const int ksizes[] = {1, 3, 5, 7};
+    for (int cols = 0; cols <= 65; cols += 4) {
+        for (int k = 0; k < 4; k++) {
+            for (int cn = 1; cn <= 4; cn += (cn == 1 ? 2 : 1)) {
+                const int   type = CV_MAKETYPE(CV_8U, cn);
+                const int   rows = 7;
+                struct Mat *src  = alloc_mat(rows, cols, type);
+                struct Mat *dst  = alloc_mat(rows, cols, type);
+                fill_pattern(src, (unsigned)cols);
+                const size_t bytes = (size_t)rows * (size_t)cols * (size_t)cn;
+                uchar       *a     = (uchar *)malloc(bytes + 1);
+                uchar       *b     = (uchar *)malloc(bytes + 1);
+                for (int is_close = 0; is_close < 2; is_close++) {
+                    naive_morph(a, src->data, rows, cols, cn, ksizes[k],
+                                is_close);
+                    naive_morph(b, a, rows, cols, cn, ksizes[k], !is_close);
+                    open_close_run(is_close, dst, src, ksizes[k]);
+                    if (bytes > 0 && memcmp(dst->data, b, bytes) != 0) {
+                        TEST_FAIL_("mismatch cn=%d cols=%d ksize=%d close=%d",
+                                   cn, cols, ksizes[k], is_close);
+                    }
+                }
+                free(a);
+                free(b);
+                free_mat(&src);
+                free_mat(&dst);
+            }
+        }
+    }
+}
+
+static void test_open_close_properties(void) {
+    // Opening is anti-extensive and closing is extensive; both are idempotent.
+    struct Mat *src = alloc_mat(13, 17, CV_8UC1);
+    struct Mat *o1  = alloc_mat(13, 17, CV_8UC1);
+    struct Mat *o2  = alloc_mat(13, 17, CV_8UC1);
+    struct Mat *c1  = alloc_mat(13, 17, CV_8UC1);
+    struct Mat *c2  = alloc_mat(13, 17, CV_8UC1);
+    fill_pattern(src, 11);
+    open_close_run(0, o1, src, 3);
+    open_close_run(0, o2, o1, 3);
+    open_close_run(1, c1, src, 3);
+    open_close_run(1, c2, c1, 3);
+    CHECK_MAT_BYTES(o2, o1->data);
+    CHECK_MAT_BYTES(c2, c1->data);
+    for (int i = 0; i < 13 * 17; i++) {
+        CHECK(o1->data[i] <= src->data[i]);
+        CHECK(c1->data[i] >= src->data[i]);
+    }
+    free_mat(&c2);
+    free_mat(&c1);
+    free_mat(&o2);
+    free_mat(&o1);
+    free_mat(&src);
+}
+
+static void test_open_close_zero_size_and_misuse(void) {
+    struct Mat e_src, e_dst, e_tmp;
+    uchar      sb[4] = {1, 2, 3, 4}, db[4] = {9, 9, 9, 9}, tb[4] = {7, 7, 7, 7};
+    CHECK_EQ_INT(mat_init(&e_src, 0, 4, CV_8UC1, sb, 4), 0);
+    CHECK_EQ_INT(mat_init(&e_dst, 0, 4, CV_8UC1, db, 4), 0);
+    CHECK_EQ_INT(mat_init(&e_tmp, 0, 4, CV_8UC1, tb, 4), 0);
+    morph_open(&e_dst, &e_tmp, &e_src, 3);
+    morph_close(&e_dst, &e_tmp, &e_src, 3);
+    CHECK_EQ_INT(db[0], 9);
+    CHECK_EQ_INT(tb[0], 7);
+
+    struct Mat *src = alloc_mat(4, 4, CV_8UC1);
+    struct Mat *dst = alloc_mat(4, 4, CV_8UC1);
+    struct Mat *tmp = alloc_mat(4, 4, CV_8UC1);
+    struct Mat *bad = alloc_mat(4, 5, CV_8UC1);
+    struct Mat *rgb = alloc_mat(4, 4, CV_8UC3);
+    EXPECT_ASSERT(morph_open(dst, tmp, src, 2));
+    EXPECT_ASSERT(morph_close(dst, tmp, src, 0));
+    EXPECT_ASSERT(morph_open(dst, src, src, 3));  // tmp == src
+    EXPECT_ASSERT(morph_close(dst, dst, src, 3)); // tmp == dst
+    EXPECT_ASSERT(morph_open(src, tmp, src, 3));  // dst == src
+    EXPECT_ASSERT(morph_open(dst, bad, src, 3));  // tmp size
+    EXPECT_ASSERT(morph_open(dst, rgb, src, 3));  // tmp type
+    EXPECT_ASSERT(morph_close(bad, tmp, src, 3)); // dst size
+    EXPECT_ASSERT(morph_close(dst, NULL, src, 3));
+    free_mat(&rgb);
+    free_mat(&bad);
+    free_mat(&tmp);
+    free_mat(&dst);
+    free_mat(&src);
+}
+
 
 int main(void) {
     RUN_TEST(test_erode3_grid);
@@ -315,6 +451,10 @@ int main(void) {
     RUN_TEST(test_misuse_asserts);
     RUN_TEST(test_allocation_failure_asserts);
     RUN_TEST(test_scratch_is_one_row_and_balanced);
-    // lane-b-open-close-run
+    RUN_TEST(test_open3_block_survives_lone_pixel_removed);
+    RUN_TEST(test_close3_fills_holes);
+    RUN_TEST(test_open_close_match_naive_composition);
+    RUN_TEST(test_open_close_properties);
+    RUN_TEST(test_open_close_zero_size_and_misuse);
     return test_finish();
 }

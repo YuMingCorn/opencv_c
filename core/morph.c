@@ -106,3 +106,27 @@ void erode(struct Mat *dst, const struct Mat *src, int ksize) {
 void dilate(struct Mat *dst, const struct Mat *src, int ksize) {
     morph(dst, src, ksize, 1);
 }
+
+static void morph_pair(struct Mat *dst, struct Mat *tmp, const struct Mat *src,
+                       int ksize, int first_is_dilate) {
+    ASSERT(dst != NULL && tmp != NULL && src != NULL);
+    ASSERT(tmp != src && tmp != dst && tmp->data != src->data &&
+           tmp->data != dst->data);
+    ASSERT(mat_type(tmp) == mat_type(src));
+    ASSERT(tmp->rows == src->rows && tmp->cols == src->cols);
+    ASSERT(dst != src && dst->data != src->data);
+    ASSERT(mat_type(dst) == mat_type(src));
+    ASSERT(dst->rows == src->rows && dst->cols == src->cols);
+    morph(tmp, src, ksize, first_is_dilate);
+    morph(dst, tmp, ksize, !first_is_dilate);
+}
+
+void morph_open(struct Mat *dst, struct Mat *tmp, const struct Mat *src,
+                int ksize) {
+    morph_pair(dst, tmp, src, ksize, 0);
+}
+
+void morph_close(struct Mat *dst, struct Mat *tmp, const struct Mat *src,
+                 int ksize) {
+    morph_pair(dst, tmp, src, ksize, 1);
+}
