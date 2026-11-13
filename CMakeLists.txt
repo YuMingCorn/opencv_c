@@ -35,6 +35,24 @@ function(improc_warnings target)
     endif()
 endfunction()
 
+# Kodak regression test: tests/kodak_ops_<module>.c against
+# tests/golden/kodak_<module>.txt. Skipped (exit 77) when the dataset is
+# absent. The IMPROC_KODAK_DIR environment variable overrides the directory at
+# run time.
+function(add_kodak_test module)
+    set(name test_kodak_${module})
+    add_executable(${name} tests/kodak_main.c tests/kodak_ops_${module}.c)
+    improc_warnings(${name})
+    target_include_directories(${name} PRIVATE tests)
+    target_compile_definitions(${name} PRIVATE KODAK_MODULE="${module}")
+    target_link_libraries(${name} PRIVATE improc)
+    add_test(NAME ${name}
+             COMMAND ${name} --dir ${IMPROC_KODAK_DIR}
+                     --manifest ${CMAKE_SOURCE_DIR}/tests/golden/kodak_${module}.txt
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(${name} PROPERTIES SKIP_RETURN_CODE 77)
+endfunction()
+
 # ---- improc_core: portable, no OS dependency -------------------------------
 set(IMPROC_CORE_SOURCES
     core/color.c
@@ -114,6 +132,7 @@ add_improc_test(test_io)
 add_improc_test(test_hooks)
 # lane-append: tests
 
+add_kodak_test(phase1)
 # lane-append: kodak tests
 
 add_test(NAME demo_smoke COMMAND demo
