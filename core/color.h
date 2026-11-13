@@ -29,12 +29,18 @@ enum ColorConversionCodes {
     COLOR_RGB2HSV,
     COLOR_BGR2HSV,
     COLOR_HSV2RGB,
-    COLOR_HSV2BGR
+    COLOR_HSV2BGR,
+    // CV_8UC3 to CV_8UC3. JFIF full-range BT.601: Y, U (Cb), V (Cr).
+    COLOR_RGB2YUV,
+    COLOR_BGR2YUV,
+    COLOR_YUV2RGB,
+    COLOR_YUV2BGR
 };
 
 // 8-bit color conversion. The caller allocates dst with the matching type and
 // the same rows and cols as src. Gray uses Y = (77R + 150G + 29B + 128) >> 8.
-// RGB2HSV matches OpenCV exactly; HSV2RGB is within 1 level of OpenCV.
+// RGB2HSV matches OpenCV exactly; HSV2RGB and YUV are within 1 level of
+// OpenCV (YUV is YCrCb with the two chroma channels swapped).
 void cvt_color(struct Mat *dst, const struct Mat *src, int code);
 
 #endif // COLOR_H_
