@@ -117,3 +117,72 @@ void box_filter(struct Mat *dst, const struct Mat *src, int ksize) {
     fast_free(pad);
     fast_free(tmp);
 }
+
+static const int gauss_weights[4][7] = {
+    {256, 0, 0, 0, 0, 0, 0},
+    {64, 128, 64, 0, 0, 0, 0},
+    {16, 64, 96, 64, 16, 0, 0},
+    {8, 28, 56, 72, 56, 28, 8},
+};
+
+// Weighted horizontal pass. Largest sum is 256 * 255, which fits uint16_t.
+static void gauss_hrow(const uchar *restrict pad, uint16_t *restrict out,
+                       int width, int cn, const int *w, int ksize) {
+    int n = width * cn;
+    for (int i = 0; i < n; i++) {
+        unsigned acc = 0;
+        for (int k = 0; k < ksize; k++) {
+            acc += (unsigned)w[k] * pad[i + k * cn];
+        }
+        out[i] = (uint16_t)acc;
+    }
+}
+
+static void gauss_vrow(const uint16_t *const *restrict rows_in,
+                       uchar *restrict d, int n, const int *w, int ksize) {
+    for (int i = 0; i < n; i++) {
+        uint32_t acc = 0;
+        for (int k = 0; k < ksize; k++) {
+            acc += (uint32_t)w[k] * rows_in[k][i];
+        }
+        d[i] = (uchar)((acc + 32768u) >> 16);
+    }
+}
+
+void gaussian_blur(struct Mat *dst, const struct Mat *src, int ksize) {
+    ASSERT(dst != src && dst->data != src->data);
+    ASSERT(is_u8_image_type(src));
+    ASSERT(mat_type(dst) == mat_type(src));
+    ASSERT(dst->rows == src->rows && dst->cols == src->cols);
+    ASSERT(ksize == 1 || ksize == 3 || ksize == 5 || ksize == 7);
+    if (src->rows == 0 || src->cols == 0) {
+        return;
+    }
+
+    const int  rows = src->rows;
+    const int  cn   = (int)mat_channel_num(src);
+    const int  n    = src->cols * cn;
+    const int  r    = ksize / 2;
+    const int *w    = gauss_weights[r];
+
+    uint16_t *tmp = fast_malloc((size_t)rows * (size_t)n * sizeof(uint16_t));
+    uchar    *pad = fast_malloc((size_t)(src->cols + 2 * r) * (size_t)cn);
+    ASSERT(tmp != NULL && pad != NULL);
+
+    for (int y = 0; y < rows; y++) {
+        pad_row(mat_row(src, y), pad, src->cols, cn, r);
+        gauss_hrow(pad, tmp + (size_t)y * (size_t)n, src->cols, cn, w, ksize);
+    }
+
+    for (int y = 0; y < rows; y++) {
+        const uint16_t *in[7];
+        for (int k = 0; k < ksize; k++) {
+            in[k] =
+                tmp + (size_t)border_reflect_101(y + k - r, rows) * (size_t)n;
+        }
+        gauss_vrow(in, mat_row(dst, y), n, w, ksize);
+    }
+
+    fast_free(pad);
+    fast_free(tmp);
+}
