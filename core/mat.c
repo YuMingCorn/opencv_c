@@ -3,16 +3,8 @@
 #include <limits.h>
 #include <stdint.h>
 
+#include "improc_internal.h"
 #include "utils.h"
-
-// Returns 1 and stores a*b in *out, or 0 on size_t overflow.
-static int mul_size(size_t a, size_t b, size_t *out) {
-    if (a != 0 && b > SIZE_MAX / a) {
-        return 0;
-    }
-    *out = a * b;
-    return 1;
-}
 
 // Computes the row stride and total bytes of a rows x cols image. Returns 0, or
 // -1 for a negative size, size_t overflow, or cols * channels above INT_MAX.
@@ -26,8 +18,8 @@ static int mat_geometry(int rows, int cols, int type, size_t *pixel_size,
         return -1;
     }
     *pixel_size = (size_t)CV_PIXEL_SIZE(type);
-    if (!mul_size(*pixel_size, (size_t)cols, row_bytes) ||
-        !mul_size(*row_bytes, (size_t)rows, total)) {
+    if (!improc_mul_size(*pixel_size, (size_t)cols, row_bytes) ||
+        !improc_mul_size(*row_bytes, (size_t)rows, total)) {
         return -1;
     }
     return 0;

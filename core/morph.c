@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "improc_internal.h"
 #include "utils.h"
 
 static int is_u8_image_type(const struct Mat *m) {
@@ -28,14 +29,14 @@ static void hmin_row(const uchar *restrict in, uchar *restrict out, int cols,
                      int cn, int r) {
     for (int x = 0; x < cols; x++) {
         const int lo = x - r < 0 ? 0 : x - r;
-        const int hi = x + r > cols - 1 ? cols - 1 : x + r;
+        const int hi = (int32_t)x + r > cols - 1 ? cols - 1 : x + r;
         for (int c = 0; c < cn; c++) {
-            uchar m = in[lo * cn + c];
+            uchar m = in[(size_t)lo * (size_t)cn + (size_t)c];
             for (int i = lo + 1; i <= hi; i++) {
-                uchar v = in[i * cn + c];
+                uchar v = in[(size_t)i * (size_t)cn + (size_t)c];
                 m       = v < m ? v : m;
             }
-            out[x * cn + c] = m;
+            out[(size_t)x * (size_t)cn + (size_t)c] = m;
         }
     }
 }
@@ -44,14 +45,14 @@ static void hmax_row(const uchar *restrict in, uchar *restrict out, int cols,
                      int cn, int r) {
     for (int x = 0; x < cols; x++) {
         const int lo = x - r < 0 ? 0 : x - r;
-        const int hi = x + r > cols - 1 ? cols - 1 : x + r;
+        const int hi = (int32_t)x + r > cols - 1 ? cols - 1 : x + r;
         for (int c = 0; c < cn; c++) {
-            uchar m = in[lo * cn + c];
+            uchar m = in[(size_t)lo * (size_t)cn + (size_t)c];
             for (int i = lo + 1; i <= hi; i++) {
-                uchar v = in[i * cn + c];
+                uchar v = in[(size_t)i * (size_t)cn + (size_t)c];
                 m       = v > m ? v : m;
             }
-            out[x * cn + c] = m;
+            out[(size_t)x * (size_t)cn + (size_t)c] = m;
         }
     }
 }
@@ -73,12 +74,13 @@ static void morph(struct Mat *dst, const struct Mat *src, int ksize,
     const int n    = src->cols * cn;
     const int r    = ksize / 2;
 
-    uchar *buf = fast_malloc((size_t)n);
-    ASSERT(buf != NULL);
+    // Scratch: one row of n = cols*cn bytes, overflow checked.
+    uchar *buf = fast_malloc(improc_scratch_mul((size_t)src->cols, (size_t)cn));
+    improc_scratch_check((void *const[]){buf}, 1);
 
     for (int y = 0; y < rows; y++) {
         const int y0 = y - r < 0 ? 0 : y - r;
-        const int y1 = y + r > rows - 1 ? rows - 1 : y + r;
+        const int y1 = (int32_t)y + r > rows - 1 ? rows - 1 : y + r;
         for (int i = 0; i < n; i++) {
             buf[i] = mat_row(src, y0)[i];
         }

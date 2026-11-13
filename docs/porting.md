@@ -48,6 +48,12 @@ improc_set_allocator(pool_alloc, pool_free);
 
 處理函式若返回，核心仍會依預設動作結束（`exit` 或 `abort`）。更換配置器時，不能有尚未釋放的 `fast_malloc` 區塊。
 
+## 暫存記憶體不足的處理方式
+
+所有需要暫存記憶體的運算（濾波、形態學、`resize`、`equalize_hist`、`otsu_threshold`）採同一個規則：向 `fast_malloc` 要不到記憶體，或暫存大小的計算超出 `size_t`（AVR 為 16 位元，Cortex-M 為 32 位元），就以 `ASSERT` 中止。大小計算全部經過溢位檢查（`core/improc_internal.h` 的 `improc_scratch_mul`、`improc_scratch_add`），所以溢位不會變成太小的緩衝區。ASSERT 之前會先釋放已經取得的區塊，處理函式即使 `longjmp` 也不會洩漏。
+
+嵌入式使用者若不能接受直接中止，請用 `improc_set_assert_handler` 安裝處理函式，在裡面重開機或 `longjmp` 回安全點。`calc_hist` 與 `otsu_threshold_hist` 使用呼叫端提供的直方圖，不需要暫存記憶體，沒有配置器也能執行。`mat_create` 與圖檔讀寫則回傳 `NULL`，因為這些輸入錯誤是預期內的狀況。
+
 ## 工具鏈與編譯旗標
 
 工具鏈檔在 `cmake/toolchains/`。用法：

@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "geometry.h"
+#include "improc_internal.h"
 #include "utils.h"
 
 static void flip_h_row(const uchar *restrict s, uchar *restrict d, int width,
@@ -129,9 +130,11 @@ static void resize_area(struct Mat *dst, const struct Mat *src) {
     int cn = (int)mat_channel_num(src);
     ASSERT((uint64_t)sw * (uint64_t)sh <= AREA_MAX_SRC_PIXELS);
 
-    size_t    n    = (size_t)dw * (size_t)cn;
-    uint32_t *bufs = fast_malloc(2 * n * sizeof(uint32_t));
-    ASSERT(bufs != NULL);
+    // Scratch: two rows of dw*cn uint32_t = 2*dw*cn*4, overflow checked.
+    size_t    n    = improc_scratch_mul((size_t)dw, (size_t)cn);
+    uint32_t *bufs = fast_malloc(
+        improc_scratch_mul(improc_scratch_mul(2, n), sizeof(uint32_t)));
+    improc_scratch_check((void *const[]){bufs}, 1);
     uint32_t *hrow = bufs;
     uint32_t *acc  = bufs + n;
     uint32_t  den  = (uint32_t)sw * (uint32_t)sh;
@@ -192,9 +195,12 @@ void resize(struct Mat *dst, const struct Mat *src, int interpolation) {
     int dw = dst->cols, dh = dst->rows, sw = src->cols, sh = src->rows;
     int cn = (int)mat_channel_num(src);
 
-    int      *xs  = fast_malloc(2 * (size_t)dw * sizeof(int));
-    uint16_t *fxs = fast_malloc((size_t)dw * sizeof(uint16_t));
-    ASSERT(xs != NULL && fxs != NULL);
+    // Scratch: coordinate tables 2*dw*sizeof(int) + dw*2, overflow checked.
+    int *xs = fast_malloc(
+        improc_scratch_mul(improc_scratch_mul(2, (size_t)dw), sizeof(int)));
+    uint16_t *fxs =
+        fast_malloc(improc_scratch_mul((size_t)dw, sizeof(uint16_t)));
+    improc_scratch_check((void *const[]){xs, fxs}, 2);
     int *x0 = xs, *x1 = xs + dw;
 
     if (interpolation == INTER_NEAREST) {
