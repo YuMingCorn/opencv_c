@@ -32,6 +32,14 @@ static void pad_row(const uchar *restrict s, uchar *restrict pad, int cols,
     }
 }
 
+// The horizontal pass keeps a ring of nslots = min(window, rows) rows, and
+// row y lives in slot y % nslots. Output row y reads only rows in
+// [max(0, y - r), min(rows - 1, y + r)], at most `window` consecutive rows,
+// so a slot is never reused while its row is still needed.
+static inline size_t ring_slot(int row, int nslots, size_t n) {
+    return (size_t)(row % nslots) * n;
+}
+
 // Box horizontal pass: sliding window sum of ksize pixels per channel.
 // pad holds (width + ksize - 1) * cn bytes, out holds width * cn.
 static void box_hrow(const uchar *restrict pad, uint16_t *restrict out,
@@ -81,41 +89,52 @@ void box_filter(struct Mat *dst, const struct Mat *src, int ksize) {
         return;
     }
 
-    const int rows = src->rows;
-    const int n    = src->cols * (int)mat_channel_num(src);
-    const int cn   = (int)mat_channel_num(src);
-    const int r    = ksize / 2;
+    const int    rows   = src->rows;
+    const int    cn     = (int)mat_channel_num(src);
+    const int    n      = src->cols * cn;
+    const int    r      = ksize / 2;
+    const int    nslots = ksize < rows ? ksize : rows;
+    const size_t un     = (size_t)n;
 
-    uint16_t *tmp = fast_malloc((size_t)rows * (size_t)n * sizeof(uint16_t));
-    uchar    *pad = fast_malloc((size_t)(src->cols + 2 * r) * (size_t)cn);
-    uint32_t *sum = fast_malloc((size_t)n * sizeof(uint32_t));
-    ASSERT(tmp != NULL && pad != NULL && sum != NULL);
+    uint16_t *ring = fast_malloc((size_t)nslots * un * sizeof(uint16_t));
+    uchar    *pad  = fast_malloc((size_t)(src->cols + 2 * r) * (size_t)cn);
+    uint32_t *sum  = fast_malloc(un * sizeof(uint32_t));
+    ASSERT(ring != NULL && pad != NULL && sum != NULL);
 
-    for (int y = 0; y < rows; y++) {
-        pad_row(mat_row(src, y), pad, src->cols, cn, r);
-        box_hrow(pad, tmp + (size_t)y * (size_t)n, src->cols, cn, ksize);
+    // `next` is the first row whose horizontal pass is not computed yet.
+    int next = 0;
+    for (; next <= (r < rows - 1 ? r : rows - 1); next++) {
+        pad_row(mat_row(src, next), pad, src->cols, cn, r);
+        box_hrow(pad, ring + ring_slot(next, nslots, un), src->cols, cn, ksize);
     }
-
     for (int i = 0; i < n; i++) {
         sum[i] = 0;
     }
     for (int i = -r; i <= r; i++) {
-        colsum_add(sum, tmp + (size_t)border_reflect_101(i, rows) * (size_t)n,
-                   n);
+        colsum_add(
+            sum, ring + ring_slot(border_reflect_101(i, rows), nslots, un), n);
     }
     const uint32_t area = (uint32_t)ksize * (uint32_t)ksize;
     for (int y = 0; y < rows; y++) {
         box_vrow(sum, mat_row(dst, y), n, area);
-        colsum_add(
-            sum, tmp + (size_t)border_reflect_101(y + r + 1, rows) * (size_t)n,
-            n);
+        // Subtract the outgoing row before its slot can be overwritten.
         colsum_sub(
-            sum, tmp + (size_t)border_reflect_101(y - r, rows) * (size_t)n, n);
+            sum, ring + ring_slot(border_reflect_101(y - r, rows), nslots, un),
+            n);
+        const int in  = y + r + 1;
+        const int top = in < rows - 1 ? in : rows - 1;
+        for (; next <= top; next++) {
+            pad_row(mat_row(src, next), pad, src->cols, cn, r);
+            box_hrow(pad, ring + ring_slot(next, nslots, un), src->cols, cn,
+                     ksize);
+        }
+        colsum_add(
+            sum, ring + ring_slot(border_reflect_101(in, rows), nslots, un), n);
     }
 
     fast_free(sum);
     fast_free(pad);
-    fast_free(tmp);
+    fast_free(ring);
 }
 
 static const int gauss_weights[4][7] = {
@@ -159,32 +178,36 @@ void gaussian_blur(struct Mat *dst, const struct Mat *src, int ksize) {
         return;
     }
 
-    const int  rows = src->rows;
-    const int  cn   = (int)mat_channel_num(src);
-    const int  n    = src->cols * cn;
-    const int  r    = ksize / 2;
-    const int *w    = gauss_weights[r];
+    const int    rows   = src->rows;
+    const int    cn     = (int)mat_channel_num(src);
+    const int    n      = src->cols * cn;
+    const int    r      = ksize / 2;
+    const int   *w      = gauss_weights[r];
+    const int    nslots = ksize < rows ? ksize : rows;
+    const size_t un     = (size_t)n;
 
-    uint16_t *tmp = fast_malloc((size_t)rows * (size_t)n * sizeof(uint16_t));
-    uchar    *pad = fast_malloc((size_t)(src->cols + 2 * r) * (size_t)cn);
-    ASSERT(tmp != NULL && pad != NULL);
+    uint16_t *ring = fast_malloc((size_t)nslots * un * sizeof(uint16_t));
+    uchar    *pad  = fast_malloc((size_t)(src->cols + 2 * r) * (size_t)cn);
+    ASSERT(ring != NULL && pad != NULL);
 
+    int next = 0;
     for (int y = 0; y < rows; y++) {
-        pad_row(mat_row(src, y), pad, src->cols, cn, r);
-        gauss_hrow(pad, tmp + (size_t)y * (size_t)n, src->cols, cn, w, ksize);
-    }
-
-    for (int y = 0; y < rows; y++) {
+        const int top = y + r < rows - 1 ? y + r : rows - 1;
+        for (; next <= top; next++) {
+            pad_row(mat_row(src, next), pad, src->cols, cn, r);
+            gauss_hrow(pad, ring + ring_slot(next, nslots, un), src->cols, cn,
+                       w, ksize);
+        }
         const uint16_t *in[7];
         for (int k = 0; k < ksize; k++) {
-            in[k] =
-                tmp + (size_t)border_reflect_101(y + k - r, rows) * (size_t)n;
+            in[k] = ring +
+                    ring_slot(border_reflect_101(y + k - r, rows), nslots, un);
         }
         gauss_vrow(in, mat_row(dst, y), n, w, ksize);
     }
 
     fast_free(pad);
-    fast_free(tmp);
+    fast_free(ring);
 }
 
 // Sobel horizontal pass with a 3-tap kernel; |result| <= 1020 fits int16_t.
@@ -219,26 +242,30 @@ void sobel(struct Mat *dst, const struct Mat *src, int dx, int dy) {
     const int       *wh        = dx ? diff : smooth;
     const int       *wv        = dx ? smooth : diff;
 
-    const int rows = src->rows;
-    const int cols = src->cols;
+    const int    rows   = src->rows;
+    const int    cols   = src->cols;
+    const int    nslots = 3 < rows ? 3 : rows;
+    const size_t uc     = (size_t)cols;
 
-    int16_t *tmp = fast_malloc((size_t)rows * (size_t)cols * sizeof(int16_t));
-    uchar   *pad = fast_malloc((size_t)cols + 2);
-    ASSERT(tmp != NULL && pad != NULL);
+    int16_t *ring = fast_malloc((size_t)nslots * uc * sizeof(int16_t));
+    uchar   *pad  = fast_malloc((size_t)cols + 2);
+    ASSERT(ring != NULL && pad != NULL);
 
+    int next = 0;
     for (int y = 0; y < rows; y++) {
-        pad_row(mat_row(src, y), pad, cols, 1, 1);
-        sobel_hrow(pad, tmp + (size_t)y * (size_t)cols, cols, 1, wh);
-    }
-    for (int y = 0; y < rows; y++) {
+        const int top = y + 1 < rows - 1 ? y + 1 : rows - 1;
+        for (; next <= top; next++) {
+            pad_row(mat_row(src, next), pad, cols, 1, 1);
+            sobel_hrow(pad, ring + ring_slot(next, nslots, uc), cols, 1, wh);
+        }
         const int16_t *t0 =
-            tmp + (size_t)border_reflect_101(y - 1, rows) * (size_t)cols;
-        const int16_t *t1 = tmp + (size_t)y * (size_t)cols;
+            ring + ring_slot(border_reflect_101(y - 1, rows), nslots, uc);
+        const int16_t *t1 = ring + ring_slot(y, nslots, uc);
         const int16_t *t2 =
-            tmp + (size_t)border_reflect_101(y + 1, rows) * (size_t)cols;
+            ring + ring_slot(border_reflect_101(y + 1, rows), nslots, uc);
         sobel_vrow(t0, t1, t2, (int16_t *)mat_row(dst, y), cols, wv);
     }
 
     fast_free(pad);
-    fast_free(tmp);
+    fast_free(ring);
 }
