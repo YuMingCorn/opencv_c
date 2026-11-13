@@ -1,5 +1,8 @@
+#include <stdint.h>
+
 #include "mat.h"
 #include "test_util.h"
+#include "utils.h"
 
 static void test_type_macros(void) {
     CHECK_EQ_INT(CV_8UC1, 0);
@@ -72,11 +75,69 @@ static void test_synthetic_single_pixel(void) {
     free_mat(&m);
 }
 
+static void test_fast_malloc_overflow(void) {
+    CHECK(fast_malloc(SIZE_MAX) == NULL);
+    CHECK(fast_malloc(SIZE_MAX - 8) == NULL);
+}
+
+static void test_fast_malloc_alignment(void) {
+    static const size_t sizes[] = {0, 1, 15, 16, 17, 1000};
+    for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+        void *p = fast_malloc(sizes[i]);
+        CHECK(p != NULL);
+        CHECK_EQ_INT((uintptr_t)p % 16, 0);
+        fast_free(p);
+    }
+}
+
+static void test_fast_free_null(void) {
+    fast_free(NULL);
+    CHECK(1);
+}
+
+static void test_alloc_zero_sized(void) {
+    static const int dims[][2] = {{0, 0}, {0, 5}, {3, 0}};
+    for (int i = 0; i < 3; i++) {
+        struct Mat *m = alloc_mat(dims[i][0], dims[i][1], CV_8UC3);
+        CHECK(m != NULL);
+        if (m == NULL) {
+            continue;
+        }
+        CHECK_EQ_INT(m->rows, dims[i][0]);
+        CHECK_EQ_INT(m->cols, dims[i][1]);
+        CHECK_EQ_INT(m->size[0], dims[i][0]);
+        CHECK_EQ_INT(m->size[1], dims[i][1]);
+        CHECK_EQ_INT(m->step[0], 3 * dims[i][1]);
+        CHECK_EQ_INT(m->step[1], 3);
+        free_mat(&m);
+        CHECK(m == NULL);
+    }
+}
+
+static void test_mat_row(void) {
+    struct Mat *m = alloc_mat(3, 4, CV_8UC3);
+    CHECK(mat_row(m, 1) == m->data + m->step[0]);
+    CHECK(mat_row(m, 2) == m->data + 2 * m->step[0]);
+    free_mat(&m);
+}
+
+static void test_cv_16s_types(void) {
+    CHECK_EQ_INT(CV_16SC1, 3);
+    CHECK_EQ_INT(CV_PIXEL_SIZE(CV_16SC1), 2);
+    CHECK_EQ_INT(CV_PIXEL_SIZE(CV_16SC4), 8);
+}
+
 int main(void) {
     RUN_TEST(test_type_macros);
     RUN_TEST(test_alloc_layout);
     RUN_TEST(test_mat_at_is_interleaved);
     RUN_TEST(test_synthetic_pattern);
     RUN_TEST(test_synthetic_single_pixel);
+    RUN_TEST(test_fast_malloc_overflow);
+    RUN_TEST(test_fast_malloc_alignment);
+    RUN_TEST(test_fast_free_null);
+    RUN_TEST(test_alloc_zero_sized);
+    RUN_TEST(test_mat_row);
+    RUN_TEST(test_cv_16s_types);
     return test_finish();
 }
