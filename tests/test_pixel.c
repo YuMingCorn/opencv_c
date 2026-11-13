@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 #include "pixel.h"
 #include "test_mat_util.h"
 
@@ -161,7 +163,94 @@ static void test_lut_width_sweep(void) {
     }
 }
 
+static void scale_c1(int alpha, int beta, int n, const uchar *in,
+                     const uchar *expected) {
+    struct Mat *src = mat_from_bytes(1, n, CV_8UC1, in);
+    struct Mat *dst = alloc_mat(1, n, CV_8UC1);
+    convert_scale(dst, src, alpha, beta);
+    CHECK_MAT_BYTES(dst, expected);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
+static void test_convert_scale_c3(void) {
+    const uchar in[]  = {0, 1, 100, 127, 128, 255};
+    const uchar out[] = {0, 2, 200, 254, 255, 255};
+    struct Mat *src   = mat_from_bytes(1, 2, CV_8UC3, in);
+    struct Mat *dst   = alloc_mat(1, 2, CV_8UC3);
+    convert_scale(dst, src, 512, 0);
+    CHECK_MAT_BYTES(dst, out);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
+static void test_convert_scale_values(void) {
+    const uchar a[]   = {0, 1, 2, 3, 255};
+    const uchar a_o[] = {10, 11, 11, 12, 138};
+    scale_c1(128, 10, 5, a, a_o);
+    const uchar b[]   = {0, 1, 255};
+    const uchar b_o[] = {255, 254, 0};
+    scale_c1(-256, 255, 3, b, b_o);
+    const uchar c[]   = {0, 99, 100, 101, 255};
+    const uchar c_o[] = {0, 0, 0, 1, 155};
+    scale_c1(256, -100, 5, c, c_o);
+    const uchar d[]   = {0, 1, 2, 3, 170, 171};
+    const uchar d_o[] = {0, 2, 3, 5, 255, 255};
+    scale_c1(384, 0, 6, d, d_o);
+}
+
+static void test_convert_scale_identity(void) {
+    struct Mat *src = alloc_mat(4, 9, CV_8UC4);
+    struct Mat *dst = alloc_mat(4, 9, CV_8UC4);
+    fill_pattern(src, 2);
+    convert_scale(dst, src, 256, 0);
+    CHECK_MAT_BYTES(dst, src->data);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
+static void abs_c1(int alpha, int beta, int n, const int16_t *in,
+                   const uchar *expected) {
+    struct Mat *src = mat_from_bytes(1, n, CV_16SC1, in);
+    struct Mat *dst = alloc_mat(1, n, CV_8UC1);
+    convert_scale_abs(dst, src, alpha, beta);
+    CHECK_MAT_BYTES(dst, expected);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
+static void test_convert_scale_abs_values(void) {
+    const int16_t a[]   = {-300, -255, -1, 0, 1, 255, 300, -32768};
+    const uchar   a_o[] = {255, 255, 1, 0, 1, 255, 255, 255};
+    abs_c1(256, 0, 8, a, a_o);
+    const int16_t b[]   = {-3, -1, 1, 3, 510, -510};
+    const uchar   b_o[] = {2, 1, 1, 2, 255, 255};
+    abs_c1(128, 0, 6, b, b_o);
+    const int16_t c[]   = {-400, 400, 1020, -1020};
+    const uchar   c_o[] = {100, 100, 255, 255};
+    abs_c1(64, 0, 4, c, c_o);
+    const int16_t d[]   = {0, 5, 10, 20, -20};
+    const uchar   d_o[] = {10, 5, 0, 10, 30};
+    abs_c1(256, -10, 5, d, d_o);
+}
+
+static void test_convert_scale_abs_c3(void) {
+    const int16_t in[]  = {-3, 3, -1, 1, 510, -510};
+    const uchar   out[] = {2, 2, 1, 1, 255, 255};
+    struct Mat   *src   = mat_from_bytes(1, 2, CV_16SC3, in);
+    struct Mat   *dst   = alloc_mat(1, 2, CV_8UC3);
+    convert_scale_abs(dst, src, 128, 0);
+    CHECK_MAT_BYTES(dst, out);
+    free_mat(&src);
+    free_mat(&dst);
+}
+
 int main(void) {
+    RUN_TEST(test_convert_scale_c3);
+    RUN_TEST(test_convert_scale_values);
+    RUN_TEST(test_convert_scale_identity);
+    RUN_TEST(test_convert_scale_abs_values);
+    RUN_TEST(test_convert_scale_abs_c3);
     RUN_TEST(test_lut_invert);
     RUN_TEST(test_lut_identity);
     RUN_TEST(test_lut_constant);

@@ -104,3 +104,60 @@ void mat_lut(struct Mat *dst, const struct Mat *src, const uchar lut[256]) {
         lut_row(mat_row(src, y), mat_row(dst, y), n, lut);
     }
 }
+
+void convert_scale(struct Mat *dst, const struct Mat *src, int alpha_q8,
+                   int beta) {
+    ASSERT(dst != src && dst->data != src->data);
+    ASSERT(is_u8_image_type(mat_type(src)));
+    ASSERT(mat_type(dst) == mat_type(src));
+    ASSERT(dst->rows == src->rows && dst->cols == src->cols);
+    ASSERT(alpha_q8 >= -32768 && alpha_q8 <= 32767);
+    ASSERT(beta >= -65536 && beta <= 65535);
+
+    if (src->rows == 0 || src->cols == 0) {
+        return;
+    }
+    uchar lut[256];
+    for (int i = 0; i < 256; i++) {
+        int v  = i * alpha_q8 + beta * 256 + 128;
+        lut[i] = (uchar)(v < 0 ? 0 : ((v >> 8) > 255 ? 255 : (v >> 8)));
+    }
+    int n = src->cols * (int)mat_channel_num(src);
+    for (int y = 0; y < src->rows; y++) {
+        lut_row(mat_row(src, y), mat_row(dst, y), n, lut);
+    }
+}
+
+static void scale_abs_row(const int16_t *restrict s, uchar *restrict d, int n,
+                          int alpha_q8, int beta) {
+    for (int i = 0; i < n; i++) {
+        int v = s[i] * alpha_q8 + beta * 256;
+        int a = v < 0 ? -v : v;
+        int r = (a + 128) >> 8;
+        d[i]  = (uchar)(r > 255 ? 255 : r);
+    }
+}
+
+void convert_scale_abs(struct Mat *dst, const struct Mat *src, int alpha_q8,
+                       int beta) {
+    ASSERT(dst != NULL && src != NULL);
+    size_t st = mat_type(src);
+    ASSERT(st == (size_t)CV_16SC1 || st == (size_t)CV_16SC3 ||
+           st == (size_t)CV_16SC4);
+    ASSERT(mat_channel_num(dst) == mat_channel_num(src));
+    ASSERT(mat_type(dst) ==
+           (size_t)CV_MAKETYPE(CV_8U, (int)mat_channel_num(src)));
+    ASSERT(dst->rows == src->rows && dst->cols == src->cols);
+    ASSERT((const void *)dst->data != (const void *)src->data);
+    ASSERT(alpha_q8 >= -32768 && alpha_q8 <= 32767);
+    ASSERT(beta >= -65536 && beta <= 65535);
+
+    if (src->rows == 0 || src->cols == 0) {
+        return;
+    }
+    int n = src->cols * (int)mat_channel_num(src);
+    for (int y = 0; y < src->rows; y++) {
+        scale_abs_row((const int16_t *)mat_row(src, y), mat_row(dst, y), n,
+                      alpha_q8, beta);
+    }
+}
