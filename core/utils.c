@@ -1,8 +1,6 @@
 #include "utils.h"
-#include "mat.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/types.h>
 
 #define ALIGN 16
 

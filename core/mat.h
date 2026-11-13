@@ -80,6 +80,11 @@
 #define CV_16UC3 CV_MAKETYPE(CV_16U, 3)
 #define CV_16UC4 CV_MAKETYPE(CV_16U, 4)
 
+#define CV_16SC1 CV_MAKETYPE(CV_16S, 1)
+#define CV_16SC2 CV_MAKETYPE(CV_16S, 2)
+#define CV_16SC3 CV_MAKETYPE(CV_16S, 3)
+#define CV_16SC4 CV_MAKETYPE(CV_16S, 4)
+
 #define CV_32FC1 CV_MAKETYPE(CV_32F, 1)
 #define CV_32FC2 CV_MAKETYPE(CV_32F, 2)
 #define CV_32FC3 CV_MAKETYPE(CV_32F, 3)
@@ -138,15 +143,19 @@ void mat_write(char const *filename, struct Mat *mat);
 void free_mat(struct Mat **mat);
 
 // mat index
-void *mat_at(struct Mat *mat, int row, int col);
+static inline uchar *mat_row(const struct Mat *m, int row) {
+    return m->data + m->step[0] * (size_t)row;
+}
 
-void mat_info(struct Mat *mat);
+void *mat_at(const struct Mat *mat, int row, int col);
+
+void mat_info(const struct Mat *mat);
 
 // Mat attribute
-size_t mat_depth(struct Mat *self);
-size_t mat_channel_size(struct Mat *self);
-size_t mat_channel_num(struct Mat *self);
-size_t mat_pixel_size(struct Mat *self);
-size_t mat_type(struct Mat *self);
+size_t mat_depth(const struct Mat *self);
+size_t mat_channel_size(const struct Mat *self);
+size_t mat_channel_num(const struct Mat *self);
+size_t mat_pixel_size(const struct Mat *self);
+size_t mat_type(const struct Mat *self);
 
 #endif // MAT_H_

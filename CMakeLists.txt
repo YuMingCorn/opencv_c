@@ -13,7 +13,13 @@ endif()
 
 find_package(Threads REQUIRED)
 
-add_library(improc STATIC core/improc.c core/mat.c core/utils.c)
+add_library(improc STATIC
+    core/color.c
+    core/pixel.c
+    core/filter.c
+    core/geometry.c
+    core/mat.c
+    core/utils.c)
 target_include_directories(improc PUBLIC core)
 target_compile_options(improc PRIVATE -Wall -Wextra)
 target_link_libraries(improc PUBLIC Threads::Threads)
@@ -35,8 +41,14 @@ function(add_improc_test name)
     add_executable(${name} tests/${name}.c)
     target_compile_options(${name} PRIVATE -Wall -Wextra)
     target_link_libraries(${name} PRIVATE improc)
-    add_test(NAME ${name} COMMAND ${name})
+    add_test(NAME ${name} COMMAND ${name}
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(${name} PROPERTIES SKIP_RETURN_CODE 77)
 endfunction()
 
 add_improc_test(test_mat)
+add_improc_test(test_color)
+add_improc_test(test_pixel)
+add_improc_test(test_filter)
+add_improc_test(test_geometry)
+add_improc_test(test_io)

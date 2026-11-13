@@ -55,7 +55,7 @@ void free_mat(struct Mat **mat) {
     return;
 }
 
-void *mat_at(struct Mat *mat, int row, int col) {
+void *mat_at(const struct Mat *mat, int row, int col) {
     ASSERT(mat && row >= 0 && row < mat->rows && col >= 0 && col < mat->cols);
     return (void *)(mat->data + mat->step[0] * row + mat->step[1] * col);
 }
@@ -165,19 +165,19 @@ void mat_write(const char *filename, struct Mat *mat) {
     }
 }
 
-void mat_info(struct Mat *mat) {
+void mat_info(const struct Mat *mat) {
     printf("Size:              : [%d x %d]\n", (int)mat->rows, (int)mat->cols);
     printf("Channel num        : %d\n", (int)mat_channel_num(mat));
     printf("Channel size(byte) : %d\n", (int)mat_channel_size(mat));
     printf("Pixel   size(btye) : %d\n", (int)mat_pixel_size(mat));
 }
 
-size_t mat_depth(struct Mat *self) { return CV_MAT_DEPTH(self->flags); }
+size_t mat_depth(const struct Mat *self) { return CV_MAT_DEPTH(self->flags); }
 
-size_t mat_channel_size(struct Mat *self) { return CV_CH_SIZE(self->flags); }
+size_t mat_channel_size(const struct Mat *self) { return CV_CH_SIZE(self->flags); }
 
-size_t mat_channel_num(struct Mat *self) { return CV_MAT_CN(self->flags); }
+size_t mat_channel_num(const struct Mat *self) { return CV_MAT_CN(self->flags); }
 
-size_t mat_pixel_size(struct Mat *self) { return CV_PIXEL_SIZE(self->flags); }
+size_t mat_pixel_size(const struct Mat *self) { return CV_PIXEL_SIZE(self->flags); }
 
-size_t mat_type(struct Mat *self) { return CV_MAT_TYPE(self->flags); }
+size_t mat_type(const struct Mat *self) { return CV_MAT_TYPE(self->flags); }
