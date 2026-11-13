@@ -52,3 +52,6 @@ add_improc_test(test_pixel)
 add_improc_test(test_filter)
 add_improc_test(test_geometry)
 add_improc_test(test_io)
+
+add_test(NAME demo_smoke COMMAND demo
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
