@@ -21,9 +21,18 @@ static struct Mat *op_hist(const struct Mat *rgb) {
     return out;
 }
 
+static struct Mat *op_equalize(const struct Mat *rgb) {
+    struct Mat *gray = op_gray(rgb);
+    struct Mat *out  = alloc_mat(rgb->rows, rgb->cols, CV_8UC1);
+    equalize_hist(out, gray);
+    free_mat(&gray);
+    return out;
+}
+
 const struct KodakOp kodak_ops[] = {
     {"gray", op_gray},
     {"hist", op_hist},
+    {"equalize", op_equalize},
 };
 
 const int kodak_op_count = (int)(sizeof(kodak_ops) / sizeof(kodak_ops[0]));
