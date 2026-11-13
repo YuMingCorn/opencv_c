@@ -90,9 +90,91 @@ static void linear_coord(int dx, int sw, int dw, int *x0, uint16_t *fx) {
     *fx = (uint16_t)f;
 }
 
+// Largest source pixel count INTER_AREA accepts: 255 * 2^24 < 2^32.
+#define AREA_MAX_SRC_PIXELS ((uint32_t)1 << 24)
+
+// Horizontal pass of INTER_AREA for one source row: out[x*cn+c] is the sum of
+// weight*pixel over the source pixels under destination pixel x. A weight is
+// at most src_w <= 2^24, so a term is at most 255*2^24 and a row sum at most
+// 255*src_w, both below 2^32.
+static void area_row_h(const uchar *restrict s, uint32_t *restrict out,
+                       int dst_w, int src_w, int cn) {
+    uint64_t sw = (uint64_t)src_w;
+    uint64_t dw = (uint64_t)dst_w;
+    uint64_t k  = 0;
+    for (int x = 0; x < dst_w; x++, out += cn) {
+        uint64_t pos = (uint64_t)x * sw;
+        uint64_t end = pos + sw;
+        for (int c = 0; c < cn; c++) {
+            out[c] = 0;
+        }
+        while (pos < end) {
+            uint64_t     k_end = (k + 1) * dw;
+            uint64_t     stop  = k_end < end ? k_end : end;
+            uint32_t     w     = (uint32_t)(stop - pos);
+            const uchar *p     = s + (size_t)k * (size_t)cn;
+            for (int c = 0; c < cn; c++) {
+                out[c] += w * (uint32_t)p[c];
+            }
+            pos = stop;
+            if (pos == k_end) {
+                k++;
+            }
+        }
+    }
+}
+
+static void resize_area(struct Mat *dst, const struct Mat *src) {
+    int dw = dst->cols, dh = dst->rows, sw = src->cols, sh = src->rows;
+    int cn = (int)mat_channel_num(src);
+    ASSERT((uint64_t)sw * (uint64_t)sh <= AREA_MAX_SRC_PIXELS);
+
+    size_t    n    = (size_t)dw * (size_t)cn;
+    uint32_t *bufs = fast_malloc(2 * n * sizeof(uint32_t));
+    ASSERT(bufs != NULL);
+    uint32_t *hrow = bufs;
+    uint32_t *acc  = bufs + n;
+    uint32_t  den  = (uint32_t)sw * (uint32_t)sh;
+    uint32_t  half = den / 2u;
+
+    uint64_t src_h  = (uint64_t)sh;
+    uint64_t dst_h  = (uint64_t)dh;
+    uint64_t k      = 0;
+    int      cached = -1; // source row currently held in hrow
+    for (int y = 0; y < dh; y++) {
+        uint64_t pos = (uint64_t)y * src_h;
+        uint64_t end = pos + src_h;
+        for (size_t i = 0; i < n; i++) {
+            acc[i] = 0;
+        }
+        while (pos < end) {
+            uint64_t k_end = (k + 1) * dst_h;
+            uint64_t stop  = k_end < end ? k_end : end;
+            uint32_t w     = (uint32_t)(stop - pos);
+            if (cached != (int)k) {
+                area_row_h(mat_row(src, (int)k), hrow, dw, sw, cn);
+                cached = (int)k;
+            }
+            for (size_t i = 0; i < n; i++) {
+                acc[i] += w * hrow[i];
+            }
+            pos = stop;
+            if (pos == k_end) {
+                k++;
+            }
+        }
+        uchar *d = mat_row(dst, y);
+        for (size_t i = 0; i < n; i++) {
+            d[i] = (uchar)((acc[i] + half) / den);
+        }
+    }
+    fast_free(bufs);
+}
+
 void resize(struct Mat *dst, const struct Mat *src, int interpolation) {
     ASSERT(dst != src && dst->data != src->data);
-    ASSERT(interpolation == INTER_NEAREST || interpolation == INTER_LINEAR);
+    ASSERT(interpolation == INTER_NEAREST || interpolation == INTER_LINEAR ||
+           interpolation == INTER_AREA);
     ASSERT(mat_depth(src) == CV_8U);
     ASSERT(mat_channel_num(src) == 1 || mat_channel_num(src) == 3 ||
            mat_channel_num(src) == 4);
@@ -101,6 +183,11 @@ void resize(struct Mat *dst, const struct Mat *src, int interpolation) {
         return;
     }
     ASSERT(src->rows > 0 && src->cols > 0);
+
+    if (interpolation == INTER_AREA) {
+        resize_area(dst, src);
+        return;
+    }
 
     int dw = dst->cols, dh = dst->rows, sw = src->cols, sh = src->rows;
     int cn = (int)mat_channel_num(src);

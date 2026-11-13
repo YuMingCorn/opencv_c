@@ -150,6 +150,7 @@ add_kodak_test(phase1)
 add_kodak_test(morph)
 add_kodak_test(hist)
 add_kodak_test(color2)
+add_kodak_test(area)
 # lane-append: kodak tests
 
 add_test(NAME demo_smoke COMMAND demo
