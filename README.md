@@ -8,6 +8,7 @@
 |---|---|---|
 | `color.h` | `cvt_color` | GRAY、RGB、BGR、RGBA、BGRA 互轉；灰階用 `(77R + 150G + 29B + 128) >> 8` |
 | `color.h` | `cvt_color`（HSV、YUV） | RGB／BGR 與 HSV（H 0～179）互轉；RGB／BGR 與 YUV（JFIF 全範圍 BT.601）互轉 |
+| `color.h` | `cvt_color`（相機格式） | RGB565（`CV_8UC2`，小端序與相機常用的大端序 `BE`）轉 BGR／RGB／GRAY；YUV422 YUYV 轉 BGR／RGB／GRAY（有限範圍 BT.601，與 OpenCV 逐 byte 相同，寬度須為偶數） |
 | `pixel.h` | `threshold` | BINARY、BINARY_INV、TRUNC、TOZERO、TOZERO_INV |
 | `pixel.h` | `mat_lut` | 256 項查表 |
 | `pixel.h` | `convert_scale`、`convert_scale_abs` | `src * alpha_q8 / 256 + beta`，結果飽和到 0～255 |
@@ -62,7 +63,7 @@ ctest --test-dir build --output-on-failure
 比對腳本需要 Python 3、`opencv-python` 與 `numpy`。先用各測試的 `--dump` 輸出影像，再讓腳本逐運算算出與 OpenCV 的最大差異：
 
 ```sh
-for m in phase1 morph hist color2 area f32; do
+for m in phase1 morph hist color2 camera area f32; do
   build/test_kodak_$m --dir datasets/kodak --manifest tests/golden/kodak_$m.txt --dump dump
 done
 python3 tools/compare_opencv.py --dump dump

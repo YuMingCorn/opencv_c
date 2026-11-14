@@ -565,6 +565,252 @@ static void test_yuv_width_sweep(void) {
     }
 }
 
+// ---- Camera formats: RGB565 and YUV422 (YUYV)
+// --------------------------------
+
+// Naive references, written from the bit layout and from the integer BT.601
+// constants OpenCV uses (color_yuv.simd.hpp), independent of core/color.c.
+static void ref_565(unsigned t, int bgr[3]) {
+    bgr[0] = (int)((t << 3) & 0xF8u);
+    bgr[1] = (int)((t >> 3) & 0xFCu);
+    bgr[2] = (int)((t >> 8) & 0xF8u);
+}
+
+static int ref_luma(int r, int g, int b) {
+    return (77 * r + 150 * g + 29 * b + 128) >> 8;
+}
+
+static int ref_sat_shift20(long long x) {
+    if (x < 0) {
+        return 0;
+    }
+    x >>= 20;
+    return x > 255 ? 255 : (int)x;
+}
+
+static void ref_yuyv(int y, int u, int v, int rgb[3]) {
+    long long yy = (long long)(y > 16 ? y - 16 : 0) * 1220542;
+    long long h  = 1 << 19;
+    long long uu = u - 128;
+    long long vv = v - 128;
+    rgb[0]       = ref_sat_shift20(yy + h + 1673527 * vv);
+    rgb[1]       = ref_sat_shift20(yy + h - 852492 * vv - 409993 * uu);
+    rgb[2]       = ref_sat_shift20(yy + h + 2116026 * uu);
+}
+
+static void test_bgr565_hand_values(void) {
+    // Words 0xF800 (red), 0x07E0 (green), 0x001F (blue), 0xFFFF (white).
+    const uchar le[]   = {0x00, 0xF8, 0xE0, 0x07, 0x1F, 0x00, 0xFF, 0xFF};
+    const uchar be[]   = {0xF8, 0x00, 0x07, 0xE0, 0x00, 0x1F, 0xFF, 0xFF};
+    const uchar bgr[]  = {0, 0, 248, 0, 252, 0, 248, 0, 0, 248, 252, 248};
+    const uchar rgb[]  = {248, 0, 0, 0, 252, 0, 0, 0, 248, 248, 252, 248};
+    const uchar gray[] = {75, 148, 28, 250};
+    convert_bytes(COLOR_BGR5652BGR, CV_8UC2, CV_8UC3, 1, 4, le, bgr);
+    convert_bytes(COLOR_BGR5652RGB, CV_8UC2, CV_8UC3, 1, 4, le, rgb);
+    convert_bytes(COLOR_BGR5652GRAY, CV_8UC2, CV_8UC1, 1, 4, le, gray);
+    convert_bytes(COLOR_BGR565BE2BGR, CV_8UC2, CV_8UC3, 1, 4, be, bgr);
+    convert_bytes(COLOR_BGR565BE2RGB, CV_8UC2, CV_8UC3, 1, 4, be, rgb);
+    convert_bytes(COLOR_BGR565BE2GRAY, CV_8UC2, CV_8UC1, 1, 4, be, gray);
+}
+
+// Every 16-bit word, in both byte orders, against the naive reference.
+static void test_bgr565_exhaustive(void) {
+    struct Mat *le = alloc_mat(256, 256, CV_8UC2);
+    struct Mat *be = alloc_mat(256, 256, CV_8UC2);
+    struct Mat *out[6];
+    const int   codes[6] = {COLOR_BGR5652BGR,   COLOR_BGR5652RGB,
+                            COLOR_BGR5652GRAY,  COLOR_BGR565BE2BGR,
+                            COLOR_BGR565BE2RGB, COLOR_BGR565BE2GRAY};
+    for (unsigned t = 0; t < 65536u; t++) {
+        le->data[2 * t]     = (uchar)(t & 0xFFu);
+        le->data[2 * t + 1] = (uchar)(t >> 8);
+        be->data[2 * t]     = (uchar)(t >> 8);
+        be->data[2 * t + 1] = (uchar)(t & 0xFFu);
+    }
+    for (int i = 0; i < 6; i++) {
+        int gray = (i % 3) == 2;
+        out[i]   = alloc_mat(256, 256, gray ? CV_8UC1 : CV_8UC3);
+        cvt_color(out[i], i < 3 ? le : be, codes[i]);
+    }
+    int bad = 0;
+    for (unsigned t = 0; t < 65536u && bad == 0; t++) {
+        int bgr[3];
+        ref_565(t, bgr);
+        int g = ref_luma(bgr[2], bgr[1], bgr[0]);
+        for (int k = 0; k < 2; k++) {
+            const uchar *pb = out[3 * k]->data + 3 * t;
+            const uchar *pr = out[3 * k + 1]->data + 3 * t;
+            const uchar *pg = out[3 * k + 2]->data + t;
+            if (pb[0] != bgr[0] || pb[1] != bgr[1] || pb[2] != bgr[2] ||
+                pr[0] != bgr[2] || pr[1] != bgr[1] || pr[2] != bgr[0] ||
+                pg[0] != g) {
+                TEST_FAIL_("565 word 0x%04X order %d", t, k);
+                bad = 1;
+            }
+        }
+    }
+    for (int i = 0; i < 6; i++) {
+        free_mat(&out[i]);
+    }
+    free_mat(&le);
+    free_mat(&be);
+}
+
+static void test_yuyv_hand_values(void) {
+    // Values checked against cv2.cvtColor(..., COLOR_YUV2RGB_YUYV), 4.10.0.
+    const uchar in[]   = {16, 128, 235, 128, 128, 128, 81,  90,
+                          41, 240, 145, 54,  0,   0,   255, 255};
+    const uchar rgb[]  = {0,   0,   0,   255, 255, 255, 70,  161,
+                          130, 15,  107, 76,  0,   45,  255, 32,
+                          167, 255, 203, 0,   0,   255, 225, 20};
+    const uchar gray[] = {16, 235, 128, 81, 41, 145, 0, 255};
+    uchar       bgr[24];
+    for (int i = 0; i < 8; i++) {
+        bgr[3 * i]     = rgb[3 * i + 2];
+        bgr[3 * i + 1] = rgb[3 * i + 1];
+        bgr[3 * i + 2] = rgb[3 * i];
+    }
+    convert_bytes(COLOR_YUV2RGB_YUYV, CV_8UC2, CV_8UC3, 1, 8, in, rgb);
+    convert_bytes(COLOR_YUV2BGR_YUYV, CV_8UC2, CV_8UC3, 1, 8, in, bgr);
+    convert_bytes(COLOR_YUV2GRAY_YUYV, CV_8UC2, CV_8UC1, 1, 8, in, gray);
+}
+
+// All Y values against a U/V grid (step 3, both ends included).
+static void test_yuyv_grid_matches_reference(void) {
+    struct Mat *src = alloc_mat(1, 256, CV_8UC2);
+    struct Mat *rgb = alloc_mat(1, 256, CV_8UC3);
+    int         bad = 0;
+    for (int u = 0; u < 256 && !bad; u += 3) {
+        for (int v = 0; v < 256 && !bad; v += 3) {
+            for (int x = 0; x < 256; x++) {
+                src->data[2 * x]     = (uchar)x;
+                src->data[2 * x + 1] = (uchar)((x & 1) ? v : u);
+            }
+            cvt_color(rgb, src, COLOR_YUV2RGB_YUYV);
+            for (int x = 0; x < 256 && !bad; x++) {
+                int want[3];
+                ref_yuyv(x, u, v, want);
+                const uchar *p = rgb->data + 3 * x;
+                if (p[0] != want[0] || p[1] != want[1] || p[2] != want[2]) {
+                    TEST_FAIL_("yuyv y=%d u=%d v=%d: got %d %d %d, want %d %d "
+                               "%d",
+                               x, u, v, p[0], p[1], p[2], want[0], want[1],
+                               want[2]);
+                    bad = 1;
+                }
+            }
+        }
+    }
+    free_mat(&src);
+    free_mat(&rgb);
+}
+
+// Widths 0..65 (565) and even widths 0..64 (YUYV), 3 rows, pattern input.
+static void test_camera_width_sweep(void) {
+    for (int w = 0; w <= 65; w++) {
+        struct Mat *src = alloc_mat(3, w, CV_8UC2);
+        struct Mat *c3  = alloc_mat(3, w, CV_8UC3);
+        struct Mat *c1  = alloc_mat(3, w, CV_8UC1);
+        fill_pattern(src, (unsigned)w);
+        for (int order = 0; order < 2; order++) {
+            cvt_color(c3, src, order ? COLOR_BGR565BE2RGB : COLOR_BGR5652RGB);
+            cvt_color(c1, src, order ? COLOR_BGR565BE2GRAY : COLOR_BGR5652GRAY);
+            for (int y = 0; y < 3; y++) {
+                for (int x = 0; x < w; x++) {
+                    const uchar *s = mat_at(src, y, x);
+                    unsigned     t = order ? ((unsigned)s[0] << 8 | s[1])
+                                           : ((unsigned)s[1] << 8 | s[0]);
+                    int          bgr[3];
+                    ref_565(t, bgr);
+                    const uchar *p = mat_at(c3, y, x);
+                    CHECK_EQ_INT(p[0], bgr[2]);
+                    CHECK_EQ_INT(p[1], bgr[1]);
+                    CHECK_EQ_INT(p[2], bgr[0]);
+                    CHECK_EQ_INT(*(const uchar *)mat_at(c1, y, x),
+                                 ref_luma(bgr[2], bgr[1], bgr[0]));
+                }
+            }
+        }
+        if (w % 2 == 0) {
+            cvt_color(c3, src, COLOR_YUV2RGB_YUYV);
+            cvt_color(c1, src, COLOR_YUV2GRAY_YUYV);
+            for (int y = 0; y < 3; y++) {
+                for (int x = 0; x < w; x++) {
+                    const uchar *s    = mat_at(src, y, x);
+                    const uchar *pair = mat_at(src, y, x & ~1);
+                    int          want[3];
+                    ref_yuyv(s[0], pair[1], pair[3], want);
+                    CHECK_EQ_BYTES(mat_at(c1, y, x), s, 1);
+                    const uchar *p = mat_at(c3, y, x);
+                    CHECK_EQ_INT(p[0], want[0]);
+                    CHECK_EQ_INT(p[1], want[1]);
+                    CHECK_EQ_INT(p[2], want[2]);
+                }
+            }
+        }
+        free_mat(&src);
+        free_mat(&c3);
+        free_mat(&c1);
+    }
+}
+
+// Zero rows or zero cols return without touching dst, as for the other codes.
+static void test_camera_zero_size_leaves_dst(void) {
+    const int codes[] = {
+        COLOR_BGR5652BGR,   COLOR_BGR5652RGB,   COLOR_BGR5652GRAY,
+        COLOR_BGR565BE2BGR, COLOR_BGR565BE2RGB, COLOR_BGR565BE2GRAY,
+        COLOR_YUV2RGB_YUYV, COLOR_YUV2BGR_YUYV, COLOR_YUV2GRAY_YUYV};
+    for (int i = 0; i < 9; i++) {
+        int dtype = (i == 2 || i == 5 || i == 8) ? CV_8UC1 : CV_8UC3;
+        for (int mode = 0; mode < 2; mode++) {
+            uchar      sbuf[4] = {1, 2, 3, 4};
+            uchar      dbuf[6] = {7, 8, 9, 10, 11, 12};
+            struct Mat s0, d0;
+            mat_init(&s0, 1, 2, CV_8UC2, sbuf, sizeof(sbuf));
+            mat_init(&d0, 1, 2, dtype, dbuf, sizeof(dbuf));
+            if (mode == 0) {
+                s0.cols = d0.cols = 0;
+            } else {
+                s0.rows = d0.rows = 0;
+            }
+            cvt_color(&d0, &s0, codes[i]);
+            for (int k = 0; k < 6; k++) {
+                CHECK_EQ_INT(dbuf[k], 7 + k);
+            }
+        }
+    }
+}
+
+static int camera_assert_fires(int code, int stype, int dtype, int cols) {
+    struct Mat *src = alloc_mat(2, cols, stype);
+    struct Mat *dst = alloc_mat(2, cols, dtype);
+    assert_count    = 0;
+    improc_set_assert_handler(jump_handler);
+    if (setjmp(assert_jump) == 0) {
+        cvt_color(dst, src, code);
+    }
+    improc_set_assert_handler(NULL);
+    free_mat(&src);
+    free_mat(&dst);
+    return assert_count;
+}
+
+static void test_camera_misuse_asserts(void) {
+    // Source must be CV_8UC2.
+    CHECK_EQ_INT(camera_assert_fires(COLOR_BGR5652RGB, CV_8UC3, CV_8UC3, 4), 1);
+    CHECK_EQ_INT(camera_assert_fires(COLOR_YUV2GRAY_YUYV, CV_8UC1, CV_8UC1, 4),
+                 1);
+    // Destination channel count must match.
+    CHECK_EQ_INT(camera_assert_fires(COLOR_BGR565BE2GRAY, CV_8UC2, CV_8UC3, 4),
+                 1);
+    // YUYV needs an even width; 565 does not.
+    CHECK_EQ_INT(camera_assert_fires(COLOR_YUV2RGB_YUYV, CV_8UC2, CV_8UC3, 5),
+                 1);
+    CHECK_EQ_INT(camera_assert_fires(COLOR_YUV2GRAY_YUYV, CV_8UC2, CV_8UC1, 5),
+                 1);
+    CHECK_EQ_INT(camera_assert_fires(COLOR_BGR5652GRAY, CV_8UC2, CV_8UC1, 5),
+                 0);
+}
 int main(void) {
     RUN_TEST(test_rgb2gray_primaries);
     RUN_TEST(test_rgb_bgr_gray_values);
@@ -594,5 +840,12 @@ int main(void) {
     RUN_TEST(test_yuv_width_sweep);
     RUN_TEST(test_color2_zero_size_leaves_dst);
     RUN_TEST(test_color2_misuse_asserts);
+    RUN_TEST(test_bgr565_hand_values);
+    RUN_TEST(test_bgr565_exhaustive);
+    RUN_TEST(test_yuyv_hand_values);
+    RUN_TEST(test_yuyv_grid_matches_reference);
+    RUN_TEST(test_camera_width_sweep);
+    RUN_TEST(test_camera_zero_size_leaves_dst);
+    RUN_TEST(test_camera_misuse_asserts);
     return test_finish();
 }
