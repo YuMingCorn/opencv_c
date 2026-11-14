@@ -151,6 +151,7 @@ add_improc_test(test_morph)
 add_improc_test(test_hist)
 add_improc_test(test_f32)
 add_improc_test(test_scratch)
+add_improc_test(test_arduino_synthetic)
 # lane-append: tests
 
 add_kodak_test(phase1)

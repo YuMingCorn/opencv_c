@@ -33,6 +33,7 @@ TARGETS=(
     "cortex-m0plus|cortex-m0plus|arm-none-eabi-gcc|arm-none-eabi-|nostdio||-fstack-usage"
     "cortex-m0plus-nomalloc|cortex-m0plus|arm-none-eabi-gcc|arm-none-eabi-|nomalloc|-DIMPROC_NO_MALLOC=ON|"
     "avr-atmega328p|avr-atmega328p|avr-gcc|avr-|nomalloc||"
+    "esp32|esp32|xtensa-esp32-elf-gcc|xtensa-esp32-elf-|nostdio||"
 )
 
 # Symbols the core must never reference on a target without stdio or threads.

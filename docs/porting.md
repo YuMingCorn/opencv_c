@@ -71,7 +71,7 @@ cmake --build build-m4f --target improc_core
 | Cortex-M7 | `arm-none-eabi-gcc` | `-mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard` 加上同樣的 section 旗標 | ON | 編譯 |
 | Cortex-M0+ | `arm-none-eabi-gcc` | `-mcpu=cortex-m0plus -mthumb` 加上 section 旗標 | OFF | 編譯；另外以 `IMPROC_NO_MALLOC=ON` 編譯一次 |
 | Arduino Uno（AVR） | `avr-gcc` | `-mmcu=atmega328p -ffunction-sections -fdata-sections` | OFF | 編譯與 `size`；使用 `IMPROC_NO_MALLOC=ON`、`IMPROC_ASSERT_TERSE=ON` |
-| ESP32 | `xtensa-esp32-elf-gcc` | `-mlongcalls -ffunction-sections -fdata-sections` | ON | 只有文件，尚未驗證 |
+| ESP32 | `xtensa-esp32-elf-gcc` | `-mlongcalls -ffunction-sections -fdata-sections`（`cmake/toolchains/esp32.cmake`） | ON | 編譯與 `size`；編譯器取自 esp32 Arduino core（`~/.arduino15/packages/esp32/tools/esp-x32/<版本>/bin`），放進 `PATH` 後由 `check_cross.sh` 檢查 |
 
 ESP32 請用 ESP-IDF 元件，把核心原始檔列進 `idf_component_register`：
 
@@ -89,6 +89,8 @@ idf_component_register(
 
 `tools/check_cross.sh` 對每個已安裝的編譯器：以 `MinSizeRel` 加 `-DIMPROC_WERROR=ON` 設定專案、建出 `improc_core`、印出 `size -t`，再用 `nm -u` 檢查未定義符號。沒有 stdio 的目標不得引用 `printf`、`fprintf`、`puts`、`fputs`、`fopen`、`exit`；沒有 malloc 的目標另外不得引用 `malloc`、`calloc`、`realloc`、`free`；所有目標都不得引用 `pthread_*`。Cortex-M0+ 的建置會加上 `-fstack-usage`，並列出最大的五個堆疊框。
 
+Arduino 與 PlatformIO 的建置不經過 CMake，設定改由 `src/improc_config.h` 提供，用法見 [README.md](../README.md) 的「Arduino 與 PlatformIO」。`tools/check_arduino_src.sh` 檢查這個結構，它有自己的目標清單（Cortex-M4F、Cortex-M0+、AVR、ESP32 與主機），沒安裝的編譯器會略過。
+
 ## 大小與暫存記憶體
 
 大小為 `libimproc_core.a` 各目的檔 `.text`、`.data`、`.bss` 的總和（位元組，`MinSizeRel`），由合併後的完整程式樹（含形態學、直方圖、HSV／YUV、`INTER_AREA`；有 FPU 的目標另含 `convert_to`）執行 `bash tools/check_cross.sh` 取得。ASSERT 會把 `__FILE__` 與運算式字串放進程式，所以原始碼路徑越長數字越大（差距可達數百位元組）；要縮小請開啟 `IMPROC_ASSERT_TERSE`。這是整個函式庫的總和；連結時加 `--gc-sections` 會丟掉沒用到的函式與表格。
@@ -103,6 +105,8 @@ idf_component_register(
 | AVR ATmega328P（無 malloc） | GCC 14.3.0 | 27472 | 0 | 6 |
 
 armhf 本機沒有編譯器，未量測。Cortex-M0+ 與 AVR 關閉浮點，所以不含 `convert_to`。
+
+ESP32（`xtensa-esp32-elf-gcc` 14.2.0，esp32 Arduino core 3.3.12 附帶）：text 18913、data 8、bss 4。以 arduino-cli 編譯範例的結果：`Synthetic` 在 ESP32-CAM 上程式 292 KB、全域變數 22 KB；`CameraOtsu` 程式 377 KB、全域變數 34 KB（大部分是 Arduino core 與相機驅動）。Arduino Uno 編譯 `Synthetic` 會因 RAM 不足而失敗，因為 `cvt_color` 的轉換表連帶引入 HSV 的 2 KB 除法表。
 
 ### 堆疊用量
 
@@ -146,7 +150,7 @@ Kodak 24 張影像、34 個運算與 OpenCV 4.10.0 的逐運算最大差異見 [
 ## 已知限制
 
 - QEMU 只用來驗證結果正確，它的速度沒有參考價值。
-- ESP32 與 armhf 沒有在本機驗證。ESP32 只有文件，armhf 只在 CI 編譯。
+- armhf 沒有在本機驗證，只在 CI 編譯。
 - `int` 只有 16 位元的目標（AVR）上，任何可能超過 32767 的中間值都必須使用 `int32_t`。
 - 測試 `test_io` 在 UBSan 下會報告 `stb_image_write.h` 內的左移溢位（`left shift of ... by 8 places cannot be represented in type 'int'`）。那是第三方檔案，維持原樣，屬於預期內的訊息；其餘測試在 ASan 與 UBSan 下沒有任何報告。
 - 暫存記憶體不足與大小溢位一律以 `ASSERT` 中止，見上文「暫存記憶體不足的處理方式」。

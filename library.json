@@ -1,0 +1,37 @@
+{
+  "name": "improc",
+  "version": "0.1.0",
+  "description": "Deterministic fixed-point image processing for microcontrollers (ESP32, ARM Cortex-M).",
+  "keywords": ["image processing", "computer vision", "esp32-cam", "otsu", "gaussian", "fixed point"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YuMingCorn/opencv_c.git"
+  },
+  "authors": [{ "name": "YuMingCorn", "maintainer": true }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": "improc.h",
+  "build": {
+    "srcDir": "src",
+    "includeDir": "src"
+  },
+  "export": {
+    "include": [
+      "library.json",
+      "library.properties",
+      "LICENSE",
+      "README.md",
+      "src",
+      "examples",
+      "core/*.c",
+      "core/*.h"
+    ],
+    "exclude": [
+      "core/mat_io.c",
+      "core/mat_io.h",
+      "core/stb_image.h",
+      "core/stb_image_write.h"
+    ]
+  }
+}
