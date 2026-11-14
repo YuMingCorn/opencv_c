@@ -80,7 +80,7 @@ cmake --build build-m4f --target improc_core
 bash tools/check_cross.sh      # 對所有已安裝的編譯器編譯並檢查未定義符號
 ```
 
-支援樹莓派（aarch64、armhf）、Cortex-M0+／M4F／M7 與 AVR（只驗證編譯與大小）。旗標表、函式庫大小、各運算的暫存記憶體與沒有 malloc 時的用法見 [docs/porting.md](docs/porting.md)。
+支援樹莓派（aarch64、armhf）、Cortex-M0+／M4F／M7、ESP32 與 AVR（只驗證編譯與大小）。旗標表、函式庫大小、各運算的暫存記憶體與沒有 malloc 時的用法見 [docs/porting.md](docs/porting.md)。
 
 ## Arduino 與 PlatformIO
 
@@ -96,7 +96,7 @@ bash tools/check_cross.sh      # 對所有已安裝的編譯器編譯並檢查�
 | `examples/Synthetic` | 任何 RAM 約 128 KB 以上的板子（ESP32、ESP32-S3、Cortex-M） | 用內建的合成圖跑「灰階 → Gaussian 5x5 → Otsu」，印出每一步的時間與雜湊。雜湊和 PC 相同時印出 `PASS`，代表這塊板子的輸出和 PC 逐 byte 相同 |
 | `examples/CameraOtsu` | AI-Thinker ESP32-CAM | 從相機抓 QVGA 灰階畫面，做 Gaussian 與 Otsu 二值化，印出時間、門檻值與白色像素比例 |
 
-> 目前狀態：`src/` 已用 Cortex-M、AVR 與主機的編譯器檢查過，Synthetic 的流程也在主機上以 C++ 執行並比對雜湊；但兩個範例都還沒用 Arduino IDE、arduino-cli 或 PlatformIO 實際編譯，`CameraOtsu` 也還沒在 ESP32 上編譯或執行。
+> 目前狀態：兩個範例都已用 arduino-cli（esp32 core 3.3.12）為 ESP32-CAM 編譯成功，`Synthetic` 也為 ESP32-S3 編譯成功，沒有來自本函式庫的警告；兩者都還沒在實機上執行，PlatformIO 也還沒實際編譯過。Arduino Uno 的 RAM 不夠執行 `Synthetic`。
 
 CMake 用 `-D` 旗標設定的選項，在 Arduino 上改由 `src/improc_config.h` 提供預設值：一律定義 `IMPROC_CORE_ONLY`；AVR 關閉浮點，並開啟 `IMPROC_NO_STDIO` 與 `IMPROC_ASSERT_TERSE`；其他架構開啟浮點。要改設定時，在建置旗標中定義同名巨集（例如 PlatformIO 的 `build_flags = -DIMPROC_ASSERT_TERSE=1`）。`src/` 內的 `.c` 檔只 include `core/` 的原始檔，所以 Arduino 與 CMake 編譯的是同一份程式碼。
 

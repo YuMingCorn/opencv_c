@@ -22,7 +22,7 @@ Arduino 封裝檢查：`bash tools/check_arduino_src.sh`（Git Bash 加 `HOST_CC
 
 Windows x64（LLVM-MinGW）、Linux x64（GCC）、macOS arm64（Clang）。程式碼要能在這三者編譯；執行緒使用 pthread，MSVC 不在支援範圍。
 
-邊緣裝置：樹莓派（aarch64、armhf）、Cortex-M0+／M4F／M7、AVR（只驗證編譯與大小）。`int` 可能只有 16 位元，任何可能超過 32767 的中間值要用 `int32_t`。
+邊緣裝置：樹莓派（aarch64、armhf）、Cortex-M0+／M4F／M7、ESP32、AVR（只驗證編譯與大小）。`int` 可能只有 16 位元，任何可能超過 32767 的中間值要用 `int32_t`。
 
 ## 模組與相依
 
