@@ -15,7 +15,13 @@ void improc_set_assert_handler(improc_assert_fn handler);
 // Calls the handler if one is set. Then prints the message and exits with
 // EXIT_FAILURE, or calls abort() when IMPROC_NO_STDIO is defined. Never
 // returns.
-_Noreturn void improc_assert_fail(const char *expr, const char *file, int line);
+#ifdef __cplusplus
+#define IMPROC_NORETURN [[noreturn]]
+#else
+#define IMPROC_NORETURN _Noreturn
+#endif
+IMPROC_NORETURN void improc_assert_fail(const char *expr, const char *file,
+                                        int line);
 
 #ifdef IMPROC_ASSERT_TERSE
 #define ASSERT(expr)                                                           \

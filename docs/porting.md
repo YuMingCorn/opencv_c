@@ -89,6 +89,8 @@ idf_component_register(
 
 `tools/check_cross.sh` 對每個已安裝的編譯器：以 `MinSizeRel` 加 `-DIMPROC_WERROR=ON` 設定專案、建出 `improc_core`、印出 `size -t`，再用 `nm -u` 檢查未定義符號。沒有 stdio 的目標不得引用 `printf`、`fprintf`、`puts`、`fputs`、`fopen`、`exit`；沒有 malloc 的目標另外不得引用 `malloc`、`calloc`、`realloc`、`free`；所有目標都不得引用 `pthread_*`。Cortex-M0+ 的建置會加上 `-fstack-usage`，並列出最大的五個堆疊框。
 
+Arduino 與 PlatformIO 的建置不經過 CMake，設定改由 `src/improc_config.h` 提供，用法見 [README.md](../README.md) 的「Arduino 與 PlatformIO」。`tools/check_arduino_src.sh` 檢查這個結構，它有自己的目標清單（Cortex-M4F、Cortex-M0+、AVR、ESP32 與主機），沒安裝的編譯器會略過。
+
 ## 大小與暫存記憶體
 
 大小為 `libimproc_core.a` 各目的檔 `.text`、`.data`、`.bss` 的總和（位元組，`MinSizeRel`），由合併後的完整程式樹（含形態學、直方圖、HSV／YUV、`INTER_AREA`；有 FPU 的目標另含 `convert_to`）執行 `bash tools/check_cross.sh` 取得。ASSERT 會把 `__FILE__` 與運算式字串放進程式，所以原始碼路徑越長數字越大（差距可達數百位元組）；要縮小請開啟 `IMPROC_ASSERT_TERSE`。這是整個函式庫的總和；連結時加 `--gc-sections` 會丟掉沒用到的函式與表格。
