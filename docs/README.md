@@ -33,7 +33,7 @@
 
 ![運算函式的共同流程](03-op-call-flow.svg)
 
-呼叫端先配置 `dst`，運算函式再用 `ASSERT` 檢查前置條件。`ASSERT` 失敗時呼叫 `improc_assert_fail`：如果用 `improc_set_assert_handler` 裝了 handler，就先呼叫它（handler 可以 `longjmp` 回到呼叫端）；handler 沒有接手時，才印訊息並 `exit(EXIT_FAILURE)`，定義 `IMPROC_NO_STDIO` 時改成 `abort()`。需要暫存記憶體的運算（filter、morph、resize、hist）用 `improc_scratch_mul` / `improc_scratch_add` 檢查大小，再用 `fast_malloc`（可用 `improc_set_allocator` 換掉配置器）配置，最後由 `improc_scratch_check` 檢查：只要有一塊是 `NULL`，就先釋放其餘區塊再 `ASSERT`，所以 handler 用 `longjmp` 也不會漏記憶體。通過檢查後逐列呼叫帶有 `restrict` 的 `static` row kernel，每個 kernel 只處理一列、不做檢查。`cvt_color` 用一張 20 列的轉換表挑 kernel（含 HSV 與 YUV），其他運算各自選擇 kernel 的方式見圖中表格。
+呼叫端先配置 `dst`，運算函式再用 `ASSERT` 檢查前置條件。`ASSERT` 失敗時呼叫 `improc_assert_fail`：如果用 `improc_set_assert_handler` 裝了 handler，就先呼叫它（handler 可以 `longjmp` 回到呼叫端）；handler 沒有接手時，才印訊息並 `exit(EXIT_FAILURE)`，定義 `IMPROC_NO_STDIO` 時改成 `abort()`。需要暫存記憶體的運算（filter、morph、resize、hist）用 `improc_scratch_mul` / `improc_scratch_add` 檢查大小，再用 `fast_malloc`（可用 `improc_set_allocator` 換掉配置器）配置，最後由 `improc_scratch_check` 檢查：只要有一塊是 `NULL`，就先釋放其餘區塊再 `ASSERT`，所以 handler 用 `longjmp` 也不會漏記憶體。通過檢查後逐列呼叫帶有 `restrict` 的 `static` row kernel，每個 kernel 只處理一列、不做檢查。`cvt_color` 用一張 29 列的轉換表挑 kernel（含 HSV、YUV，以及相機格式 RGB565 與 YUYV），其他運算各自選擇 kernel 的方式見圖中表格。
 
 對應檔案：`core/color.c`、`core/pixel.c`、`core/geometry.c`、`core/utils.h`、`core/utils.c`、`core/improc_internal.h`。`morph`、`hist`、`convert_f32` 的前置條件寫法與此相同。
 

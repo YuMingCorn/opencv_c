@@ -345,6 +345,114 @@ static void yuv2bgr_row(const uchar *restrict s, uchar *restrict d, int width) {
     }
 }
 
+// ---- Camera formats --------------------------------------------------------
+// 565: the word t holds R in bits 15..11, G in 10..5, B in 4..0. t fits 16
+// bits; the left shift may wrap a 16-bit unsigned, which the mask discards.
+
+static inline unsigned word_le(const uchar *s) {
+    return (unsigned)s[0] | ((unsigned)s[1] << 8);
+}
+
+static inline unsigned word_be(const uchar *s) {
+    return ((unsigned)s[0] << 8) | (unsigned)s[1];
+}
+
+static inline uchar c565_b(unsigned t) { return (uchar)((t << 3) & 0xF8u); }
+
+static inline uchar c565_g(unsigned t) { return (uchar)((t >> 3) & 0xFCu); }
+
+static inline uchar c565_r(unsigned t) { return (uchar)((t >> 8) & 0xF8u); }
+
+#define DEFINE_565_ROWS(suffix, read_word)                                     \
+    static void bgr565##suffix##2bgr_row(const uchar *restrict s,              \
+                                         uchar *restrict d, int width) {       \
+        for (int x = 0; x < width; x++, s += 2, d += 3) {                      \
+            unsigned t = read_word(s);                                         \
+            d[0]       = c565_b(t);                                            \
+            d[1]       = c565_g(t);                                            \
+            d[2]       = c565_r(t);                                            \
+        }                                                                      \
+    }                                                                          \
+    static void bgr565##suffix##2rgb_row(const uchar *restrict s,              \
+                                         uchar *restrict d, int width) {       \
+        for (int x = 0; x < width; x++, s += 2, d += 3) {                      \
+            unsigned t = read_word(s);                                         \
+            d[0]       = c565_r(t);                                            \
+            d[1]       = c565_g(t);                                            \
+            d[2]       = c565_b(t);                                            \
+        }                                                                      \
+    }                                                                          \
+    static void bgr565##suffix##2gray_row(const uchar *restrict s,             \
+                                          uchar *restrict d, int width) {      \
+        for (int x = 0; x < width; x++, s += 2) {                              \
+            unsigned t = read_word(s);                                         \
+            d[x]       = luma(c565_r(t), c565_g(t), c565_b(t));                \
+        }                                                                      \
+    }
+
+DEFINE_565_ROWS(le, word_le)
+DEFINE_565_ROWS(be, word_be)
+
+// YUYV: limited-range BT.601 with OpenCV's Q20 constants. The luma term is at
+// most 239 * 1220542 = 291709538 and the largest chroma term is
+// 128 * 2116026 = 270851328, so every sum stays below 2^30 and fits int32_t. A
+// negative sum clamps to 0 before the shift, which gives the same result as
+// OpenCV's arithmetic shift followed by saturation.
+#define YUYV_CY   1220542
+#define YUYV_CVR  1673527
+#define YUYV_CVG  (-852492)
+#define YUYV_CUG  (-409993)
+#define YUYV_CUB  2116026
+#define YUYV_HALF ((int32_t)1 << 19)
+
+static inline uchar yuyv_sat(int32_t x) {
+    if (x < 0) {
+        return 0;
+    }
+    x >>= 20;
+    return (uchar)(x > 255 ? 255 : x);
+}
+
+static inline void yuyv_px(int32_t y, int32_t ruv, int32_t guv, int32_t buv,
+                           int swap, uchar *d) {
+    int32_t yy      = (y > 16 ? y - 16 : 0) * (int32_t)YUYV_CY;
+    d[swap ? 2 : 0] = yuyv_sat(yy + ruv);
+    d[1]            = yuyv_sat(yy + guv);
+    d[swap ? 0 : 2] = yuyv_sat(yy + buv);
+}
+
+static inline void yuyv_pair(const uchar *s, int swap, uchar *d) {
+    int32_t u   = (int32_t)s[1] - 128;
+    int32_t v   = (int32_t)s[3] - 128;
+    int32_t ruv = YUYV_HALF + (int32_t)YUYV_CVR * v;
+    int32_t guv = YUYV_HALF + (int32_t)YUYV_CVG * v + (int32_t)YUYV_CUG * u;
+    int32_t buv = YUYV_HALF + (int32_t)YUYV_CUB * u;
+    yuyv_px(s[0], ruv, guv, buv, swap, d);
+    yuyv_px(s[2], ruv, guv, buv, swap, d + 3);
+}
+
+// width is even (cvt_color checks it).
+static void yuyv2rgb_row(const uchar *restrict s, uchar *restrict d,
+                         int width) {
+    for (int x = 0; x < width; x += 2, s += 4, d += 6) {
+        yuyv_pair(s, 0, d);
+    }
+}
+
+static void yuyv2bgr_row(const uchar *restrict s, uchar *restrict d,
+                         int width) {
+    for (int x = 0; x < width; x += 2, s += 4, d += 6) {
+        yuyv_pair(s, 1, d);
+    }
+}
+
+static void yuyv2gray_row(const uchar *restrict s, uchar *restrict d,
+                          int width) {
+    for (int x = 0; x < width; x++, s += 2) {
+        d[x] = s[0];
+    }
+}
+
 typedef void (*color_row_fn)(const uchar *restrict, uchar *restrict, int);
 
 struct ColorConversion {
@@ -352,29 +460,39 @@ struct ColorConversion {
     int          scn;
     int          dcn;
     color_row_fn kernel;
+    int          even_cols; // 1 when the source packs two pixels per unit
 };
 
 static const struct ColorConversion conversions[] = {
-    {COLOR_RGB2GRAY, 3, 1, rgb2gray_row},
-    {COLOR_BGR2GRAY, 3, 1, bgr2gray_row},
-    {COLOR_RGBA2GRAY, 4, 1, rgba2gray_row},
-    {COLOR_BGRA2GRAY, 4, 1, bgra2gray_row},
-    {COLOR_GRAY2RGB, 1, 3, gray2rgb_row},
-    {COLOR_GRAY2RGBA, 1, 4, gray2rgba_row},
-    {COLOR_RGB2BGR, 3, 3, rgb2bgr_row},
-    {COLOR_RGBA2BGRA, 4, 4, rgba2bgra_row},
-    {COLOR_RGB2RGBA, 3, 4, rgb2rgba_row},
-    {COLOR_RGBA2RGB, 4, 3, rgba2rgb_row},
-    {COLOR_RGB2BGRA, 3, 4, rgb2bgra_row},
-    {COLOR_RGBA2BGR, 4, 3, rgba2bgr_row},
-    {COLOR_RGB2HSV, 3, 3, rgb2hsv_row},
-    {COLOR_BGR2HSV, 3, 3, bgr2hsv_row},
-    {COLOR_HSV2RGB, 3, 3, hsv2rgb_row},
-    {COLOR_HSV2BGR, 3, 3, hsv2bgr_row},
-    {COLOR_RGB2YUV, 3, 3, rgb2yuv_row},
-    {COLOR_BGR2YUV, 3, 3, bgr2yuv_row},
-    {COLOR_YUV2RGB, 3, 3, yuv2rgb_row},
-    {COLOR_YUV2BGR, 3, 3, yuv2bgr_row},
+    {COLOR_RGB2GRAY, 3, 1, rgb2gray_row, 0},
+    {COLOR_BGR2GRAY, 3, 1, bgr2gray_row, 0},
+    {COLOR_RGBA2GRAY, 4, 1, rgba2gray_row, 0},
+    {COLOR_BGRA2GRAY, 4, 1, bgra2gray_row, 0},
+    {COLOR_GRAY2RGB, 1, 3, gray2rgb_row, 0},
+    {COLOR_GRAY2RGBA, 1, 4, gray2rgba_row, 0},
+    {COLOR_RGB2BGR, 3, 3, rgb2bgr_row, 0},
+    {COLOR_RGBA2BGRA, 4, 4, rgba2bgra_row, 0},
+    {COLOR_RGB2RGBA, 3, 4, rgb2rgba_row, 0},
+    {COLOR_RGBA2RGB, 4, 3, rgba2rgb_row, 0},
+    {COLOR_RGB2BGRA, 3, 4, rgb2bgra_row, 0},
+    {COLOR_RGBA2BGR, 4, 3, rgba2bgr_row, 0},
+    {COLOR_RGB2HSV, 3, 3, rgb2hsv_row, 0},
+    {COLOR_BGR2HSV, 3, 3, bgr2hsv_row, 0},
+    {COLOR_HSV2RGB, 3, 3, hsv2rgb_row, 0},
+    {COLOR_HSV2BGR, 3, 3, hsv2bgr_row, 0},
+    {COLOR_RGB2YUV, 3, 3, rgb2yuv_row, 0},
+    {COLOR_BGR2YUV, 3, 3, bgr2yuv_row, 0},
+    {COLOR_YUV2RGB, 3, 3, yuv2rgb_row, 0},
+    {COLOR_YUV2BGR, 3, 3, yuv2bgr_row, 0},
+    {COLOR_BGR5652BGR, 2, 3, bgr565le2bgr_row, 0},
+    {COLOR_BGR5652RGB, 2, 3, bgr565le2rgb_row, 0},
+    {COLOR_BGR5652GRAY, 2, 1, bgr565le2gray_row, 0},
+    {COLOR_BGR565BE2BGR, 2, 3, bgr565be2bgr_row, 0},
+    {COLOR_BGR565BE2RGB, 2, 3, bgr565be2rgb_row, 0},
+    {COLOR_BGR565BE2GRAY, 2, 1, bgr565be2gray_row, 0},
+    {COLOR_YUV2RGB_YUYV, 2, 3, yuyv2rgb_row, 1},
+    {COLOR_YUV2BGR_YUYV, 2, 3, yuyv2bgr_row, 1},
+    {COLOR_YUV2GRAY_YUYV, 2, 1, yuyv2gray_row, 1},
 };
 
 void cvt_color(struct Mat *dst, const struct Mat *src, int code) {
@@ -390,6 +508,7 @@ void cvt_color(struct Mat *dst, const struct Mat *src, int code) {
     ASSERT(mat_type(src) == (size_t)CV_MAKETYPE(CV_8U, conv->scn));
     ASSERT(mat_type(dst) == (size_t)CV_MAKETYPE(CV_8U, conv->dcn));
     ASSERT(src->rows == dst->rows && src->cols == dst->cols);
+    ASSERT(!conv->even_cols || src->cols % 2 == 0);
     if (src->rows == 0 || src->cols == 0) {
         return;
     }

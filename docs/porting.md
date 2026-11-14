@@ -95,12 +95,12 @@ idf_component_register(
 
 | 目標 | 編譯器版本 | text | data | bss |
 |---|---|---|---|---|
-| aarch64 | GCC 15.2.0 | 24332 | 496 | 8 |
-| Cortex-M4F | GCC 14.2.1 | 16648 | 8 | 4 |
-| Cortex-M7 | GCC 14.2.1 | 16642 | 8 | 4 |
-| Cortex-M0+ | GCC 14.2.1 | 16307 | 8 | 4 |
-| Cortex-M0+（無 malloc） | GCC 14.2.1 | 15702 | 0 | 12 |
-| AVR ATmega328P（無 malloc） | GCC 14.3.0 | 27472 | 0 | 6 |
+| aarch64 | GCC 15.2.0 | 25576 | 944 | 8 |
+| Cortex-M4F | GCC 14.2.1 | 17414 | 8 | 4 |
+| Cortex-M7 | GCC 14.2.1 | 17408 | 8 | 4 |
+| Cortex-M0+ | GCC 14.2.1 | 17086 | 8 | 4 |
+| Cortex-M0+（無 malloc） | GCC 14.2.1 | 16481 | 0 | 12 |
+| AVR ATmega328P（無 malloc） | GCC 14.3.0 | 29074 | 0 | 6 |
 
 armhf 本機沒有編譯器，未量測。Cortex-M0+ 與 AVR 關閉浮點，所以不含 `convert_to`。
 
@@ -141,7 +141,7 @@ HSV 轉換用兩張 `uint32_t[256]` 的除法表（共 2 KB）。AVR 沒有 `PRO
 
 ## 與 OpenCV 的差異
 
-Kodak 24 張影像、34 個運算與 OpenCV 4.10.0 的逐運算最大差異見 [kodak-results.md](kodak-results.md)。
+Kodak 24 張影像、38 個運算與 OpenCV 4.10.0 的逐運算最大差異見 [kodak-results.md](kodak-results.md)。
 
 ## 已知限制
 

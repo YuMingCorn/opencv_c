@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1170" width="1280" height="1170" role="img" aria-labelledby="t d">
 <title id="t">運算函式的共同流程</title>
-<desc id="d">所有影像運算共用的骨架：呼叫端配置 dst，運算函式先 ASSERT 前置條件，再逐列呼叫 static row kernel。需要暫存的運算先檢查大小並用 fast_malloc 配置，失敗經 improc_scratch_check 走 ASSERT。ASSERT 失敗交給 improc_assert_fail：先呼叫可選的 handler，再 exit 或 abort。右側列出各 op 如何選 row kernel，以及 cvt_color 的 20 列表驅動 dispatch。</desc>
+<desc id="d">所有影像運算共用的骨架：呼叫端配置 dst，運算函式先 ASSERT 前置條件，再逐列呼叫 static row kernel。需要暫存的運算先檢查大小並用 fast_malloc 配置，失敗經 improc_scratch_check 走 ASSERT。ASSERT 失敗交給 improc_assert_fail：先呼叫可選的 handler，再 exit 或 abort。右側列出各 op 如何選 row kernel，以及 cvt_color 的 29 列表驅動 dispatch。</desc>
 <defs>
 <style>
 svg{font-family:"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC","Helvetica Neue",Arial,sans-serif;font-size:13px}
@@ -181,10 +181,10 @@ text{fill:#1F2328}
 <text x="524" y="979">COLOR_YUV2RGB</text><text x="714" y="979">3</text><text x="774" y="979">3</text><text x="834" y="979">yuv2rgb_row</text><text x="1024" y="979" class="sec">—</text>
 <text x="524" y="1001">COLOR_YUV2BGR</text><text x="714" y="1001">3</text><text x="774" y="1001">3</text><text x="834" y="1001">yuv2bgr_row</text><text x="1024" y="1001" class="sec">—</text>
 </g>
-<text x="516" y="1028" class="s12 sec">28 個 enum 名稱對應 20 列（color.h:8-37）；前 12 列是 GRAY / RGB / BGR / RGBA 互轉，後 8 列是 HSV 與 YUV</text>
+<text x="516" y="1028" class="s12 sec">37 個 enum 名稱對應 29 列（color.h:8-55）；前 12 列是 GRAY / RGB / BGR / RGBA 互轉，接著 8 列是 HSV 與 YUV，最後 9 列是相機格式 RGB565 與 YUYV（未畫出）</text>
 <text x="516" y="1046" class="m s12">1. 掃表找 code；ASSERT(conv != NULL)；ASSERT(dst != src)</text>
 <text x="516" y="1062" class="m s12">2. ASSERT src type == CV_MAKETYPE(CV_8U, scn)，dst type == CV_MAKETYPE(CV_8U, dcn)</text>
-<text x="516" y="1078" class="m s12">3. ASSERT 同尺寸；conv-&gt;kernel(mat_row(src, y), mat_row(dst, y), src-&gt;cols)</text>
+<text x="516" y="1078" class="m s12">3. ASSERT 同尺寸（YUYV 另要求偶數寬）；conv-&gt;kernel(mat_row(src, y), mat_row(dst, y), src-&gt;cols)</text>
 <text x="516" y="1102" class="s12">灰階：Y = (77×R + 150×G + 29×B + 128) &gt;&gt; 8（color.c:7-9）</text>
 <text x="516" y="1120" class="s12">HSV：H 0..179，S、V 0..255；YUV：JFIF 全範圍 BT.601，U = Cb、V = Cr（color.h 註解）</text>
 </svg>
